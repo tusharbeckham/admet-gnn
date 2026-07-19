@@ -1,0 +1,76 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.installed.cfg
+
+# --- Virtual environments ---
+venv/
+.venv/
+env/
+ENV/
+
+# --- Environment / secrets ---
+.env
+.env.*
+*.key
+*.pem
+secrets.yaml
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Data (large / regenerable — do not commit raw or processed datasets) ---
+data/raw/*
+data/processed/*
+data/pretrain/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/pretrain/.gitkeep
+
+# --- Model artifacts (large binaries — commit via releases or a model registry instead) ---
+*.pt
+*.pth
+*.ckpt
+*.onnx
+serving/models/*
+!serving/models/.gitkeep
+
+# --- Experiment tracking / logs ---
+*.log
+wandb/
+mlruns/
+lightning_logs/
+runs/
+
+# --- Frontend ---
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/.cache/
+
+# --- Docker ---
+*.pid
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Internal planning docs (proprietary, not pushed — README.md is the exception) ---
+*.md
+!README.md
+
+# --- Testing / coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
