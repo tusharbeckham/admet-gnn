@@ -1,0 +1,50 @@
+# Computational Drug Discovery Engine — Python dependencies
+#
+# NOTE on PyTorch Geometric: install torch FIRST, matched to your
+# CPU/CUDA setup, then install torch-geometric and its companion packages
+# using PyG's official install matrix (the exact wheel URLs depend on your
+# torch version + CUDA version + OS, so they are not pip-installable via a
+# plain requirements.txt line). See: https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
+# Steps:
+#   1) pip install torch --index-url <appropriate index for your platform>
+#   2) pip install torch-geometric
+#   3) pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-<TORCH_VERSION>+<cpu_or_cuXXX>.html
+
+# --- Core ML ---
+torch>=2.2
+torch-geometric>=2.5
+
+# --- Cheminformatics ---
+rdkit>=2023.9.1
+
+# --- Data handling ---
+numpy>=1.26
+pandas>=2.2
+scikit-learn>=1.4
+
+# --- Optional: MoleculeNet dataset loaders ---
+# deepchem's PyPI releases are stale (years behind its GitHub source) and
+# frequently fail to resolve on current Python versions — do NOT rely on
+# `pip install deepchem`. Load MoleculeNet CSVs directly instead (see
+# research.md / method.md — this is the default plan, not a fallback).
+# If you specifically want deepchem's loaders later, install it in its own
+# separate environment from source: https://deepchem.readthedocs.io/en/latest/get_started/installation.html
+# deepchem>=2.8
+
+# --- Backend API ---
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+python-multipart>=0.0.9
+
+# --- Training utilities / experiment tracking ---
+tqdm>=4.66
+matplotlib>=3.8
+
+# --- Testing ---
+pytest>=8.0
+httpx>=0.27          # for FastAPI test client
+
+# --- Dev tooling (optional) ---
+black>=24.0
+ruff>=0.4
