@@ -1,0 +1,40 @@
+# Normalise line endings. Every .md file in the previous version of this
+# repository was committed with CRLF endings, which makes diffs noisy and
+# breaks shebangs and heredocs when the same tree is checked out in CI.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary -- never diff or normalise these.
+*.onnx binary
+*.pt binary
+*.pth binary
+*.png binary
+*.jpg binary
+*.pdf binary
+*.ico binary
+*.woff2 binary
+# Compressed and array formats. `text=auto` usually detects these, but a
+# gzipped CSV is exactly the kind of file that gets mangled by line-ending
+# normalisation if detection guesses wrong.
+*.gz binary
+*.zip binary
+*.bz2 binary
+*.xz binary
+*.npy binary
+*.npz binary
+*.parquet binary
+*.sqlite binary
+
+# Generated / vendored files: keep them out of language statistics and
+# collapse them in pull-request diffs.
+Cargo.lock linguist-generated=true
+pnpm-lock.yaml linguist-generated=true
+web/src/lib/vendor/** linguist-vendored=true
+
+# Diagram sources are text but are not meaningfully reviewable as diffs.
+*.mdj -diff
+*.puml text
+*.dbml text

@@ -1,50 +1,69 @@
-# Computational Drug Discovery Engine — Python dependencies
+# =============================================================
+#  ADMETriage -- Python dependencies (TRAINING SIDE ONLY)
+# =============================================================
 #
-# NOTE on PyTorch Geometric: install torch FIRST, matched to your
-# CPU/CUDA setup, then install torch-geometric and its companion packages
-# using PyG's official install matrix (the exact wheel URLs depend on your
-# torch version + CUDA version + OS, so they are not pip-installable via a
-# plain requirements.txt line). See: https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
-# Steps:
-#   1) pip install torch --index-url <appropriate index for your platform>
-#   2) pip install torch-geometric
-#   3) pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-<TORCH_VERSION>+<cpu_or_cuXXX>.html
+#  This environment exists to produce one file: model.onnx.
+#  It is never on the request path. Inference is Rust (see crates/).
+#
+#  Recommended installer is uv -- roughly 10x faster than pip and it
+#  resolves the torch CPU index cleanly:
+#      curl -LsSf https://astral.sh/uv/install.sh | sh
+#      uv venv && source .venv/bin/activate
+#      uv pip install -r requirements.txt
+#
+#  Install torch from the CPU index explicitly. The default PyPI wheel
+#  drags in ~2.5 GB of CUDA libraries you will never use, because
+#  training on datasets of 600-13,000 molecules is CPU work:
+#      uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+#
+# -------------------------------------------------------------
+#  REMOVED FROM THE PREVIOUS VERSION -- read before re-adding
+# -------------------------------------------------------------
+#  torch-geometric
+#  torch-scatter
+#  torch-sparse
+#
+#  PyG aggregates neighbours with torch_scatter ops that have NO ONNX
+#  equivalent, so a PyG model cannot be exported to a portable artefact
+#  and therefore cannot be served from Rust. The whole architecture
+#  depends on that export working. The model uses padded dense adjacency
+#  and torch.bmm instead. Do not reintroduce these packages.
+#  Refs: pyg-team/pytorch_geometric#8415, pytorch/pytorch#65138
+#
+#  fastapi / uvicorn / python-multipart / httpx
+#
+#  Serving is Axum in Rust. A second Python HTTP layer would duplicate
+#  the API surface, split the test suite, and contradict the submitted
+#  synopsis. If you need a throwaway debug endpoint during training,
+#  install it ad hoc -- do not pin it here.
+# =============================================================
 
 # --- Core ML ---
-torch>=2.2
-torch-geometric>=2.5
+torch>=2.5                    # install from the CPU index (see above)
+
+# --- ONNX export + verification ---
+onnx>=1.17
+onnxruntime>=1.20             # used to verify the export in-process
+onnxscript>=0.1.0             # required by torch.onnx.export(dynamo=True)
 
 # --- Cheminformatics ---
-rdkit>=2023.9.1
+rdkit>=2024.3.1
+
+# --- Datasets: Therapeutics Data Commons ADMET group ---
+PyTDC>=1.1.0
 
 # --- Data handling ---
-numpy>=1.26
+numpy>=1.26,<3
 pandas>=2.2
-scikit-learn>=1.4
+scikit-learn>=1.5             # metrics: roc_auc_score, mean_absolute_error
 
-# --- Optional: MoleculeNet dataset loaders ---
-# deepchem's PyPI releases are stale (years behind its GitHub source) and
-# frequently fail to resolve on current Python versions — do NOT rely on
-# `pip install deepchem`. Load MoleculeNet CSVs directly instead (see
-# research.md / method.md — this is the default plan, not a fallback).
-# If you specifically want deepchem's loaders later, install it in its own
-# separate environment from source: https://deepchem.readthedocs.io/en/latest/get_started/installation.html
-# deepchem>=2.8
-
-# --- Backend API ---
-fastapi>=0.110
-uvicorn[standard]>=0.29
-pydantic>=2.6
-python-multipart>=0.0.9
-
-# --- Training utilities / experiment tracking ---
+# --- Training utilities ---
 tqdm>=4.66
-matplotlib>=3.8
+matplotlib>=3.9               # calibration plots, training curves
 
 # --- Testing ---
-pytest>=8.0
-httpx>=0.27          # for FastAPI test client
+pytest>=8.3
+pytest-cov>=5.0
 
-# --- Dev tooling (optional) ---
-black>=24.0
-ruff>=0.4
+# --- Dev tooling ---
+ruff>=0.7                     # linter + formatter; replaces black + flake8

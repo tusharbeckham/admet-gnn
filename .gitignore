@@ -1,3 +1,7 @@
+# =============================================================
+#  admet-gnn / ADMETriage
+# =============================================================
+
 # --- Python ---
 __pycache__/
 *.py[cod]
@@ -7,6 +11,7 @@ __pycache__/
 build/
 dist/
 .installed.cfg
+.ruff_cache/
 
 # --- Virtual environments ---
 venv/
@@ -14,9 +19,28 @@ venv/
 env/
 ENV/
 
+# --- Rust ---
+target/
+**/*.rs.bk
+*.pdb
+# Cargo.lock IS committed for binaries -- do not ignore it.
+
+# --- Node / SvelteKit ---
+node_modules/
+.svelte-kit/
+web/build/
+web/.vercel/
+web/.output/
+.pnpm-store/
+
+# --- Tauri ---
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+
 # --- Environment / secrets ---
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 secrets.yaml
@@ -24,21 +48,48 @@ secrets.yaml
 # --- Jupyter ---
 .ipynb_checkpoints/
 
-# --- Data (large / regenerable — do not commit raw or processed datasets) ---
+# --- Data (large, regenerable -- never commit raw or processed datasets) ---
+#  BOTH locations are covered on purpose. Datasets from the MoleculeNet
+#  prototype sit at data/ in the repo root; TDC downloads land under
+#  training/data/. Covering only one path is exactly how 22,000 lines of
+#  CSV once got committed by accident.
 data/raw/*
 data/processed/*
 data/pretrain/*
+data/interim/*
+data/cache/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/pretrain/.gitkeep
+training/data/raw/*
+training/data/processed/*
+training/data/pretrain/*
+training/data/cache/*
+!training/data/raw/.gitkeep
+!training/data/processed/.gitkeep
+!training/data/pretrain/.gitkeep
 
-# --- Model artifacts (large binaries — commit via releases or a model registry instead) ---
+# Bulk dataset and archive formats -- never committed from any location.
+# Small golden-vector fixtures are the deliberate exception, because CI
+# must be able to verify feature parity without a download.
+*.sdf
+*.smi
+*.csv.gz
+*.tsv.gz
+*.parquet
+*.npz
+!fixtures/**
+
+# --- Model artifacts (large binaries -- ship via GitHub Releases) ---
 *.pt
 *.pth
 *.ckpt
 *.onnx
 serving/models/*
 !serving/models/.gitkeep
+# EXCEPTION: the tiny spike artefact is committed so CI can prove the
+# ONNX round-trip without a full training run.
+!fixtures/spike_tiny_gin.onnx
 
 # --- Experiment tracking / logs ---
 *.log
@@ -47,18 +98,17 @@ mlruns/
 lightning_logs/
 runs/
 
-# --- Frontend ---
-node_modules/
-frontend/dist/
-frontend/build/
-frontend/.next/
-frontend/.cache/
-
 # --- Docker ---
 *.pid
 
+# --- Diagram tool scratch files (export the PNG/SVG, commit that) ---
+*.mdj.bak
+*.uxf~
+
 # --- IDE ---
 .vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.swp
 
@@ -66,11 +116,27 @@ frontend/.cache/
 .DS_Store
 Thumbs.db
 
-# --- Internal planning docs (proprietary, not pushed — README.md is the exception) ---
-*.md
-!README.md
-
 # --- Testing / coverage ---
 .pytest_cache/
 .coverage
 htmlcov/
+tarpaulin-report.html
+lcov.info
+
+# =============================================================
+#  MARKDOWN VISIBILITY -- deliberate decision
+# =============================================================
+#  Only README.md is published. Every other markdown document --
+#  planning notes, research, requirements, design, SRS, DFDs, ER
+#  model, UML, test plan, ADRs -- stays local and is submitted as
+#  a document, not through this repository.
+#
+#  Know the trade-off: anyone following the repo URL sees code and
+#  a README, and none of the engineering documentation. That is
+#  fine when the deliverables are handed in on paper or as PDFs.
+#
+#  To publish the graded artefacts later, delete the `*.md` line
+#  below (or narrow it to `/*.md` to publish docs/ but keep
+#  root-level working notes private).
+*.md
+!README.md
