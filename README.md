@@ -55,7 +55,7 @@ So the model uses **padded dense adjacency** instead:
 | `mask` | `[B, 128]` | 1 for real atoms, 0 for padding |
 
 Message passing becomes `torch.bmm(adj, x)` — a batched matrix multiply, which
-ONNX exports cleanly at opset 17. The cost is arithmetic on padding
+ONNX exports cleanly at opset 18. The cost is arithmetic on padding
 (≈2.1M multiply-adds dense vs ≈17k sparse for a typical 30-atom molecule).
 That waste is irrelevant on CPU at this scale and buys the entire Rust serving
 path. **Molecules above 128 heavy atoms are rejected, not truncated.**

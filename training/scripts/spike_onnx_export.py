@@ -40,7 +40,27 @@ MAX_ATOMS = 128
 N_FEATURES = 33
 N_ENDPOINTS = 12
 HIDDEN = 128
-OPSET = 17
+# Opset 18, not 17 -- and this is a measured fact, not a preference.
+#
+# torch >= 2.9 implements a MINIMUM opset of 18. Ask for 17 and it exports at
+# 18 anyway, then attempts a down-conversion, and for this graph that
+# down-conversion FAILS:
+#
+#     axes_input_to_attribute.h:56: adapt: Assertion
+#     `node->hasAttribute(kaxes)` failed: No initializer or constant input
+#
+# Opset 18 moved the `axes` argument of the Reduce* family from an ATTRIBUTE
+# to an INPUT. The downgrade adapter has to fold that input back into an
+# attribute, and it can only do so when the input is a constant initializer.
+# Our masked mean/max pooling emits exactly those Reduce ops with a computed
+# axes input, so the failure is structural, not incidental -- it will never
+# succeed for this architecture.
+#
+# The old value therefore requested a downgrade that silently did not happen
+# and left an opset-18 file that every document called opset 17. onnxruntime
+# has supported 18 since 1.15, so the Rust `ort` path is unaffected. Declare
+# what we actually produce.
+OPSET = 18
 TOLERANCE = 1e-5
 
 
@@ -352,7 +372,9 @@ def _summary(results, onnx_path: Path | None = None) -> int:
       export. This model must use torch.bmm on a dense adjacency.
     * Is any tensor shape dependent on the input data? Only the BATCH axis
       may be dynamic; the atom axis must be fixed at 128.
-    * Try opset 18 or 19. Occasionally an op gains support in a later opset.
+    * Try opset 19 or 20. Occasionally an op gains support in a later opset.
+      Do NOT try below 18: the exporter cannot emit it, and the down-convert
+      pass fails on the Reduce* axes-as-input change described at OPSET above.
     * Was model.eval() called before export? BatchNorm in train mode can
       emit ops that fail to fold.
 
