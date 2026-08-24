@@ -49,8 +49,31 @@ onnxscript>=0.1.0             # required by torch.onnx.export(dynamo=True)
 # --- Cheminformatics ---
 rdkit>=2024.3.1
 
-# --- Datasets: Therapeutics Data Commons ADMET group ---
-PyTDC>=1.1.0
+# --- Datasets: Therapeutics Data Commons ---
+#  PyTDC is DELIBERATELY NOT INSTALLED HERE. See requirements-data.txt.
+#
+#  PyTDC 1.1.15 -- the latest release, and unchanged for well over a year
+#  -- pins rdkit>=2023.9.5,<2024.3.1. Current rdkit is 2026.03.x.
+#  Installing it here would drag this project's cheminformatics core back
+#  two and a half years. It also pulls transformers, accelerate, datasets,
+#  evaluate, huggingface-hub, cellxgene-census, tiledbsoma and gget --
+#  none of which this project uses.
+#  Ref: github.com/mims-harvard/TDC/issues/374
+#
+#  TDC is a build-time data acquisition tool, not a runtime dependency.
+#  It is needed once per endpoint to fetch raw SMILES and labels, then
+#  never again. So it lives in its own throwaway environment:
+#      uv venv .venv-tdc --python 3.12
+#      .venv-tdc\Scripts\Activate.ps1
+#      uv pip install -r requirements-data.txt
+#      python training/data/download.py
+#
+#  HARD RULE: download.py performs NO chemistry. It fetches and writes
+#  raw CSV, nothing else. Every RDKit operation -- salt stripping,
+#  canonicalisation, InChIKey, scaffold assignment, featurisation --
+#  happens in THIS environment against the single pinned rdkit below.
+#  Splitting chemistry across two rdkit versions is exactly how feature
+#  skew (risk R3) gets in, and it is invisible until metrics disagree.
 
 # --- Data handling ---
 numpy>=1.26,<3

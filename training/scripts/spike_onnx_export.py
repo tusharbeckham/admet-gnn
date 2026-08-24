@@ -201,7 +201,37 @@ def main() -> int:
     onnx_path = tmpdir / "spike_tiny_gin.onnx"
 
     # ---- export ---------------------------------------------------------
-    try:
+    #  torch.onnx.export changed materially between 2.6 and 2.11:
+    #    2.6   do_constant_folding deprecated -- it is always enabled now
+    #    2.9   dynamo flipped to True by DEFAULT
+    #    2.10  fallback defaults to False -- no silent retry on the old path
+    #    2.11  fallback removed entirely
+    #
+    #  dynamic_axes is the LEGACY (dynamo=False) vocabulary; dynamic_shapes
+    #  is the torch.export vocabulary. PyTorch will auto-convert the former,
+    #  but that conversion has documented corner cases
+    #  (pytorch/pytorch#150940, #150544), so we state the modern form
+    #  explicitly rather than depending on a best-effort translation.
+    #
+    #  Passing ONE Dim object to all three inputs asserts that they share a
+    #  single batch size. Three independently named axes would not: the
+    #  exporter would accept a graph where x has 8 rows and adj has 5.
+    def _export_dynamo() -> None:
+        from torch.export import Dim
+
+        batch = Dim("batch")
+        torch.onnx.export(
+            model,
+            (tx, tadj, tmask),
+            str(onnx_path),
+            opset_version=OPSET,
+            input_names=["x", "adj", "mask"],
+            output_names=["predictions"],
+            dynamic_shapes=({0: batch}, {0: batch}, {0: batch}),
+            dynamo=True,
+        )
+
+    def _export_legacy() -> None:
         torch.onnx.export(
             model,
             (tx, tadj, tmask),
@@ -215,11 +245,27 @@ def main() -> int:
                 "mask": {0: "batch"},
                 "predictions": {0: "batch"},
             },
-            do_constant_folding=True,
+            dynamo=False,
         )
+
+    try:
+        try:
+            _export_dynamo()
+            route = "torch.export"
+        except Exception as modern_exc:  # noqa: BLE001
+            print(
+                f"        dynamo exporter declined: "
+                f"{type(modern_exc).__name__}: {modern_exc}"
+            )
+            print("        falling back to the legacy TorchScript exporter")
+            _export_legacy()
+            route = "legacy TorchScript"
         size_kb = onnx_path.stat().st_size / 1024
-        print(f"  [3/5] onnx export ....................... {size_kb:,.0f} KB")
-        results.append(("export", True, f"{size_kb:,.0f} KB"))
+        print(
+            f"  [3/5] onnx export ....................... "
+            f"{size_kb:,.0f} KB  [{route}]"
+        )
+        results.append(("export", True, f"{size_kb:,.0f} KB / {route}"))
     except Exception as exc:  # noqa: BLE001
         print(f"  [3/5] onnx export ....................... FAILED\n\n{exc}")
         results.append(("export", False, str(exc)[:200]))

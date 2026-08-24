@@ -16,8 +16,14 @@ dist/
 # --- Virtual environments ---
 venv/
 .venv/
+.venv-*/
 env/
 ENV/
+#  .venv-*/ catches the throwaway dataset-download environment
+#  (.venv-tdc -- see requirements-data.txt). Note that .venv/ does NOT
+#  match .venv-tdc/: a trailing-slash pattern matches that exact
+#  directory name and nothing else. Every new environment naming scheme
+#  needs its own rule, or it turns up as untracked at the worst moment.
 
 # --- Rust ---
 target/

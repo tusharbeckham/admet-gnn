@@ -1,0 +1,61 @@
+# =============================================================
+#  ADMETriage -- dataset acquisition ONLY
+# =============================================================
+#
+#  This is a throwaway environment. Create it, download the raw data,
+#  then forget it. It is never used for training, export, or serving,
+#  and it is never the environment you develop in.
+#
+#      uv venv .venv-tdc --python 3.12
+#      .venv-tdc\Scripts\Activate.ps1        # Windows PowerShell
+#      source .venv-tdc/bin/activate         # macOS / Linux
+#      uv pip install -r requirements-data.txt
+#      python training/data/download.py
+#      deactivate
+#
+#  If rdkit has no wheel for 3.12 at this old pin, use --python 3.11 for
+#  THIS environment only. It is isolated, so the version it runs on has
+#  no bearing on the training environment. That freedom is the entire
+#  reason for keeping the two apart.
+#
+# -------------------------------------------------------------
+#  Why this file exists
+# -------------------------------------------------------------
+#  PyTDC 1.1.15 pins rdkit>=2023.9.5,<2024.3.1, while current rdkit is
+#  2026.03.x. It also pulls in the HuggingFace training stack
+#  (transformers, accelerate, datasets, evaluate, huggingface-hub) and
+#  two single-cell genomics packages (cellxgene-census, tiledbsoma).
+#  None of that belongs in a training environment whose only job is to
+#  produce one ONNX file.
+#  Ref: github.com/mims-harvard/TDC/issues/374
+#
+#  Keeping TDC here lets requirements.txt stay on a current rdkit with a
+#  small, auditable dependency tree.
+#
+# -------------------------------------------------------------
+#  HARD RULE for anything run in this environment
+# -------------------------------------------------------------
+#  Write raw CSV and nothing else. No canonicalisation, no salt
+#  stripping, no InChIKey generation, no scaffold assignment, no
+#  featurisation. Those steps belong in the training environment against
+#  one pinned rdkit version.
+#
+#  Rationale: features computed by rdkit 2023.09 and features computed
+#  by rdkit 2026.03 can differ in edge cases (aromaticity perception,
+#  ring finding, stereo handling). If half the pipeline runs on each,
+#  the training set and the serving path disagree in ways that no test
+#  catches and no metric explains. One rdkit, one feature contract.
+#
+#  TDC's own get_split(method='scaffold') is a CROSS-CHECK only. The
+#  authoritative split is training/data/scaffold_split.py, run in the
+#  training environment, because the Rust side must reproduce that exact
+#  grouping.
+# =============================================================
+
+# Pinned exactly: this environment is disposable, so reproducibility
+# costs nothing and vague ranges only invite surprises.
+PyTDC==1.1.15
+
+# Needed to write the raw CSV. Deliberately unpinned beyond a floor --
+# nothing here feeds the model, so drift is harmless.
+pandas>=2.2
