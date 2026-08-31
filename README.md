@@ -10,16 +10,32 @@ served through a Rust inference API, with a SvelteKit workspace on top.
 **→ If you are here to work on this, read [`START-HERE.md`](START-HERE.md).** It is the
 week-by-week plan with the exact commands.
 
-**Status — 2026-08-27, at the scaffold tag.** Planning and design are complete: SRS,
-design document, test plan, traceability matrix and seven ADRs are written. The five Rust
-crates exist as compiling stubs with typed signatures and no bodies — and `cargo` is not
-yet installed on the development machine, so they have **never been compiled**. The ONNX
-export spike is green. The TDC downloader is written but nothing has been downloaded; the
-`data/` directory still holds the superseded MoleculeNet prototype. **Zero** of the 61
-planned test ids exist.
+**Status — 2026-08-31, at the scaffold tag.** Planning and design are complete: SRS,
+design document, test plan, traceability matrix and seven ADRs are written. The Rust
+toolchain is now installed and **the workspace compiles**: all five crates build clean,
+`cargo clippy --all-features -- -D warnings` is silent, and `cargo nextest run --workspace`
+reports **119 passed, 17 skipped** — the 17 being `#[ignore]`d placeholders that name
+Increment 1–5 work rather than pretending to cover it. `cargo doc` is a gate too, so a
+comment cannot link to a method that does not exist. CI is green on all four jobs.
+
+The gate that matters: `tests/onnx_parity.rs` **passes**, agreeing with Python's
+`onnxruntime` within tolerance across batch sizes 1 and 3. That closes the Python↔Rust
+loop ADR-01 rests on, and it had never once executed before this.
+
+Compiling a scaffold that had never been built cost **eleven defects**, DEF-01…DEF-11 in
+[`docs/03-test-plan.md`](docs/03-test-plan.md) §10.2, three of them S1 — a wrong number
+that looks right. The committed ONNX fixture could not be loaded at all; `MolGraph::default()`
+violated the CSR invariant it validates itself against; and one fatal endpoint scored 0.119
+instead of ~0, meaning the triage score did not actually disqualify a likely hERG blocker.
+Evidence in [`docs/evidence/increment-0/`](docs/evidence/increment-0/).
+
+Still absent, deliberately: the TDC downloader is written but nothing has been downloaded,
+so `data/` still holds the superseded MoleculeNet prototype. No featuriser body, no GIN, no
+training run, no migrations, no front end.
 
 So nothing here is trained or benchmarked. Every performance figure in `docs/` is a
-*target*, not a measurement, and is labelled as such.
+*target*, not a measurement, and is labelled as such. A skipped test is not a passing test,
+and 119 passing tests over stubs say the scaffold is sound — not that the system works.
 
 
 ---

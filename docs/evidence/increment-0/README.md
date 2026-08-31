@@ -15,6 +15,7 @@ files record what happened when they finally were.
 | `nextest.txt` | 119 Rust tests passing, 17 `#[ignore]`d placeholders skipped. | `cargo nextest run --workspace` |
 | `pytest.txt` | 11 Python tests passing over `scaffold_split` and `clean`. | `python -m pytest training/tests -q` |
 | `audit-rsa-not-in-build-graph.txt` | `rsa` (RUSTSEC-2023-0071) is absent from the build graph — the evidence behind the single entry in `.cargo/audit.toml`. | `cargo tree -i rsa --target all` |
+| `ci-run.txt` | All four CI jobs green on Ubuntu, which is the only proof that the gate holds off this Windows machine. | `gh run view 33414869460` |
 
 ## The number that matters
 
@@ -24,7 +25,7 @@ test compares Rust's `ort` output against a golden fixture produced by Python's
 3. It closes the Python↔Rust loop that ADR-01 is built on, and until this run it
 had never executed.
 
-Getting there took eight defects, logged as **DEF-01 … DEF-08** in
+Getting there took eleven defects, logged as **DEF-01 … DEF-11** in
 [`../../03-test-plan.md`](../../03-test-plan.md) §10.2. Three were **S1** — a
 wrong number that looks right:
 
