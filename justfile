@@ -153,8 +153,18 @@ bench-cli N="1000":
     cargo run -q --release -p admet-cli -- bench --n {{N}} --breakdown
 
 # Criterion benchmarks over the pure functions.
+#
+#  `--bench core` is required, not tidiness. Without it `cargo bench -p admet-core`
+#  also runs the LIB target as a bench, and that target uses the built-in libtest
+#  harness which rejects Criterion's flags:
+#
+#      error: Unrecognized option: 'save-baseline'
+#
+#  So the plain form works only for as long as nobody passes a Criterion argument,
+#  and `just results` -- which needs `--save-baseline` -- was broken from the day it
+#  was written (DEF-15). Naming the bench target keeps both forms working.
 bench:
-    cargo bench -p admet-core
+    cargo bench -p admet-core --bench core
 
 # =============================================================================
 #  Quality gates
@@ -299,7 +309,7 @@ desktop:
 # must be labelled as one.
 results:
     {{py}} -m training.report
-    cargo bench -p admet-core -- --save-baseline report
+    cargo bench -p admet-core --bench core -- --save-baseline report
 
 # Export diagram sources to docs/diagrams/. 300 DPI raster or SVG, per ch. 27.
 diagrams:

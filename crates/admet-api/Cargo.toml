@@ -43,3 +43,10 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 config = { workspace = true }
+
+[dev-dependencies]
+# `ServiceExt::oneshot` lives behind tower's `util` feature. Driving the assembled
+# Router directly is what lets the HTTP tests in tests/routes_http.rs check path,
+# method and status without binding a socket -- so they run in CI and cannot fail
+# because something else already holds the port.
+tower = { workspace = true, features = ["util"] }

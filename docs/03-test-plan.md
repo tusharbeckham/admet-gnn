@@ -252,10 +252,24 @@ prediction is acted on.
 
 ### 10.2 The log
 
-Fifteen rows are reserved because the manual's template expects roughly that many
+Fifteen rows were reserved because the manual's template expects roughly that many
 across five increments. Empty rows are not padding — a log with three entries at
 the end of fifteen weeks means defects were fixed without being recorded, and that
 is a documentation failure rather than a quality achievement.
+
+> **All fifteen were consumed before Increment 1 finished.** Not because the code
+> was unusually bad, but because a scaffold had been written without a compiler,
+> a linker, a package manager or a single executed test on the machine — and
+> compiling it for the first time surfaced everything at once. Three were S1: a
+> fixture that could not be loaded, a default value that violated its own
+> invariant, and a triage score that did not disqualify a fatal endpoint. Two more
+> were checks that had never run at all (a secret scanner failing on every input,
+> a bench recipe that could not accept its own flags), which is the category worth
+> fearing: a gate that has never fired is indistinguishable from one that works.
+>
+> The manual's estimate of "roughly fifteen across five increments" was not wrong
+> about the rate of defect discovery. It assumed the code would be written and run
+> in the same sitting.
 
 | ID | Sev | Found in | Found by | Symptom | Root cause | Fix | Test added | Refs |
 |---|---|---|---|---|---|---|---|---|
@@ -273,7 +287,12 @@ is a documentation failure rather than a quality achievement.
 | DEF-12 | S2 | `training/data/download_tdc.py` | First run of the downloader | Crashed before fetching a single byte: `AttributeError: module 'tdc' has no attribute '__version__'`. | PyTDC 1.1.15 does not define `__version__` at module level, and the downloader printed it. | Version read from installed distribution metadata via `importlib.metadata.version("PyTDC")`, falling back to `"unknown"`. Knowing which TDC produced a dataset is useful; it is not worth losing the dataset over. | Reproducing is the test: the script now completes and records the version in `_manifest.json`. | TR-07 |
 | DEF-13 | S3 | `training/data/download_tdc.py` | Comparing download output with `docs/06-data-sources.md` | Five endpoints reported `DRIFT` against their published row counts — `ppbr` apparently 2,790 rows against a documented 1,797, which reads like a dataset revision that would invalidate every benchmark comparison. | Nothing had drifted. The published TDC figures are **unique-molecule** counts while the benchmark-group CSVs contain repeated SMILES: 993 duplicates in `ppbr`, 55 in `bbb`. The check compared raw rows. | The comparison is now made on unique SMILES, and duplicate counts are printed and recorded as `n_unique_smiles` in the manifest — duplicates being the information actually worth having, since they matter for Increment 1 dedup. | `training/scripts/check_row_count_drift.py`: for all twelve endpoints, `rows - duplicates` reproduces the published figure exactly or the raw count already matched. **12 explained, 0 unexplained.** Re-running the downloader reports zero DRIFT. | TR-07 |
 | DEF-14 | S3 | `requirements-data.txt` | Following the file's own install instructions | `uv pip install -r requirements-data.txt` failed with `Failed to build tiledbsoma==1.11.4` … `not a CMake build directory`. On the retry the visible error was `ModuleNotFoundError: No module named 'pandas'`, pointing at entirely the wrong problem. | PyTDC 1.1.15 depends on `tiledbsoma`, a single-cell genomics package with no Windows wheel that tries to compile from source. The failed build aborts the whole transaction, so none of the other packages install either — hence the misleading pandas error. | PyTDC is installed separately with `--no-deps` and **removed from the requirements file**, so `-r` cannot re-resolve its tree. The file now lists the set `admet_group` genuinely needs, found by import-and-add, including a `setuptools<81` pin because `tdc/oracles.py` imports `pkg_resources` at import time and setuptools 84 removed it. `rdkit` is absent by design: the hard rule means this env does no chemistry, so PyTDC's `rdkit<2024.3.1` pin never has to be satisfied — the very conflict that justified splitting the environments. | The env was deleted and rebuilt using only the documented commands, then `admet_group` imported and all twelve endpoints downloaded. | TR-07, R3 |
-| DEF-15 | | | | | | | | |
+| DEF-15 | S3 | `justfile` (`results`, `bench`) | Running `cargo bench` with a Criterion flag for the first time | `error: Unrecognized option: 'save-baseline'`, exit 101. `just results` — the recipe whose entire purpose is regenerating every number in the report — could never have worked. | `cargo bench -p admet-core` runs the **lib** target as a bench in addition to the Criterion target. The lib target uses the built-in libtest harness, which rejects Criterion's arguments. The plain form appears to work only because nothing had ever passed a Criterion flag through it. | Both recipes now name the bench target: `cargo bench -p admet-core --bench core`. | `just bench` and `cargo bench -p admet-core --bench core -- --save-baseline scaffold` both succeed; baselines captured in `docs/evidence/increment-0/benchmarks.md`. | NFR-01, NFR-02 |
+| DEF-16 | | | | | | | | |
+| DEF-17 | | | | | | | | |
+| DEF-18 | | | | | | | | |
+| DEF-19 | | | | | | | | |
+| DEF-20 | | | | | | | | |
 
 Worked example of a completed row, so the level of detail is unambiguous:
 
