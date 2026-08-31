@@ -418,6 +418,21 @@ with it, whereas one that starts and reports `model: absent` is inspectable with
 a single `curl`. **No prediction is ever served from a degraded state**: `/predict`
 without an engine is a typed 503, never a default value.
 
+**Statelessness (NFR-08).** `POST /predict` holds no per-user session state. Every
+request carries everything needed to answer it, and the only server-side state is
+the prediction cache — which is keyed on `(inchikey, model_version)`
+([ADR-04](adr/0004-inchikey-identity-and-cache-key.md)) and is therefore shared,
+not per-caller, and safe to drop at any moment. Two consequences that are the
+reason this is a requirement rather than an implementation note: a second instance
+can be added behind a load balancer without sticky sessions, and a restart loses
+nothing but warmth. Verified by TC-I-005, which issues the same request to two
+independently constructed `AppState`s and asserts identical responses.
+
+> Added late. This requirement was present in the register and cited in
+> [`04-traceability.md`](04-traceability.md), but had no definition anywhere in
+> this document — so a reader working from the repository alone could not find out
+> what NFR-08 required. Found by `scripts/check-traceability.py` (DEF-17).
+
 **Security.** Full STRIDE analysis in [`02-design.md`](02-design.md) §Security.
 The posture *today*, stated plainly rather than implied:
 

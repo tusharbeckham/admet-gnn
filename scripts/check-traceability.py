@@ -41,7 +41,24 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MATRIX = REPO_ROOT / "docs" / "04-traceability.md"
-REGISTER = REPO_ROOT / "requirements.md"
+
+#  The register is the COMMITTED SRS, not `requirements.md`.
+#
+#  `requirements.md` is the fuller register, but `.gitignore` carries `/*.md` on
+#  purpose: the root planning notes are the Owner's and stay local. So it does not
+#  exist in a clone, and a check that depends on it can only ever run on one laptop
+#  — which is how the first CI run of this script died with
+#  "FATAL cannot find requirements.md" and exit 2.
+#
+#  `docs/01-srs.md` is committed and is the authoritative requirement definition for
+#  anyone reading the repository. Using it as the register also means the check
+#  answers a more useful question: is every requirement the matrix cites actually
+#  *defined in the repository*? It found NFR-08 missing on the first run (DEF-17).
+REGISTER = REPO_ROOT / "docs" / "01-srs.md"
+
+#  Checked additionally when present, so the private register and the public SRS
+#  cannot silently diverge. Absent in CI, and that is not a failure.
+LOCAL_REGISTER = REPO_ROOT / "requirements.md"
 CODE_DIRS = ("crates", "training")
 
 REQ_ID = re.compile(r"\b(?:FR|TR|NFR|UC)-\d+\b")
@@ -133,6 +150,29 @@ def main() -> int:
         report.fail(
             "requirement IDs in the register but never cited in the matrix "
             f"(an untraced requirement): {', '.join(registered_but_uncited)}"
+        )
+
+    #  Optional: if the private register is present, the public SRS must not be
+    #  missing anything it defines. This is the check that found NFR-08 -- cited in
+    #  the matrix, present in requirements.md, and defined nowhere a reader of the
+    #  repository could reach.
+    if LOCAL_REGISTER.is_file():
+        local_reqs = ids_in(LOCAL_REGISTER, REQ_ID)
+        missing_from_srs = sorted(local_reqs - register_reqs)
+        if missing_from_srs:
+            report.fail(
+                f"requirement IDs in {LOCAL_REGISTER.name} but absent from "
+                f"docs/01-srs.md, so they are undefined for anyone reading the "
+                f"repository: {', '.join(missing_from_srs)}"
+            )
+        report.note(
+            f"cross-checked against {LOCAL_REGISTER.name} "
+            f"({len(local_reqs)} IDs) -- not present in CI, checked here"
+        )
+    else:
+        report.note(
+            "requirements.md absent (expected in CI; it is gitignored by design) "
+            "-- register cross-check skipped, docs/01-srs.md used as the register"
         )
 
     # --- 2. test IDs --------------------------------------------------------
