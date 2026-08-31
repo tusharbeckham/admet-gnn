@@ -7,6 +7,14 @@
 *.bat text eol=crlf
 *.ps1 text eol=crlf
 
+# Extensionless executables that MUST be LF. `* text=auto eol=lf` above already
+# covers these, but stating them explicitly is worth the two lines: a CRLF in the
+# shebang makes the hook fail with `bash\r: No such file or directory`, an error
+# that names neither the cause nor the file, and which only appears on Windows.
+.githooks/* text eol=lf
+justfile text eol=lf
+*.sh text eol=lf
+
 # Binary -- never diff or normalise these.
 *.onnx binary
 *.pt binary
@@ -25,6 +33,12 @@
 *.xz binary
 *.npy binary
 *.npz binary
+# Raw little-endian float32 blobs -- the golden parity fixtures. `text=auto`
+# would almost certainly detect these as binary on its own, because float data
+# is full of NUL bytes. Almost certainly is not a guarantee, and a fixture
+# quietly corrupted by CRLF translation would make the Rust parity test fail
+# for a reason nobody would think to look for.
+*.f32 binary
 *.parquet binary
 *.sqlite binary
 

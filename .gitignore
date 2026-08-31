@@ -132,17 +132,37 @@ lcov.info
 # =============================================================
 #  MARKDOWN VISIBILITY -- deliberate decision
 # =============================================================
-#  Only README.md is published. Every other markdown document --
-#  planning notes, research, requirements, design, SRS, DFDs, ER
-#  model, UML, test plan, ADRs -- stays local and is submitted as
-#  a document, not through this repository.
+#  Two tiers, and the distinction is what gets graded.
 #
-#  Know the trade-off: anyone following the repo URL sees code and
-#  a README, and none of the engineering documentation. That is
-#  fine when the deliverables are handed in on paper or as PDFs.
+#  PUBLISHED (tracked):  docs/** -- the SRS, design document, test
+#  plan, traceability matrix, ADRs, diagram specifications, weekly
+#  journal. These are deliverables. They belong in version control
+#  so their history is evidence: an examiner can see that ADR-03
+#  was written before the model, not reverse-engineered after it.
 #
-#  To publish the graded artefacts later, delete the `*.md` line
-#  below (or narrow it to `/*.md` to publish docs/ but keep
-#  root-level working notes private).
-*.md
+#  PRIVATE (ignored):    /*.md at the repo root -- research.md,
+#  method.md, requirements.md, implementation.md, MIGRATION.md.
+#  These are working notes. They are where thinking happens, they
+#  contradict themselves in places, and they are submitted as
+#  finished documents rather than as a directory listing.
+#
+#  The pattern is `/*.md`, NOT `*.md`. The leading slash anchors it
+#  to the root: without it, git ignores markdown at every depth and
+#  docs/ silently vanishes -- which is a genuinely confusing bug,
+#  because `git status` reports nothing at all rather than an error.
+#
+#  README.md is re-included because it is the repository's front
+#  door and must be visible on the hosting page. START-HERE.md is
+#  re-included because it is a deliverable in its own right -- the
+#  week-by-week execution guide -- and it is useless to anyone who
+#  clones the repository if it is not in the repository.
+/*.md
 !README.md
+!START-HERE.md
+
+# Evidence artefacts survive the bulk-format rules above. A test
+# log or a coverage report committed under docs/evidence/ is there
+# on purpose -- it is the proof behind a number in the report, and
+# regenerating it months later on different hardware would produce
+# a different number. See docs/evidence/README.md.
+!docs/evidence/**
