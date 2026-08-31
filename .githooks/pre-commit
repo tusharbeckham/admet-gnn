@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  ADMETriage pre-commit hook
+#
+#  Manual Listing 5.3. Installed by `just hooks`, which sets
+#  `core.hooksPath=.githooks` -- so this hook is VERSIONED. A hook copied into
+#  .git/hooks is invisible to git, drifts from what CI runs, and nobody notices
+#  when it stops firing.
+#
+#  Design rule: this must stay under ~10 seconds. A hook slower than that gets
+#  bypassed with --no-verify, and a bypassed hook is worse than no hook because
+#  it created a false sense of coverage. That is why it runs `admet-core` tests
+#  only -- no database, no model, no HTTP -- and leaves the full suite to CI.
+#
+#  Escape hatch, for a genuine work-in-progress commit on a branch:
+#      git commit --no-verify
+#  If you are reaching for it more than about once a week, the hook is wrong.
+#  Fix the hook rather than training yourself to skip it.
+# =============================================================================
+
+# `pipefail` is load-bearing, not decoration: several checks below are written as
+# `cargo ... | tail -25` to keep the output short, and WITHOUT pipefail the
+# pipeline's status is tail's -- which is always 0. The hook would then pass on
+# every failure. Do not remove it.
+set -uo pipefail
+
+fail=0
+step() { printf '\n\033[1m-- %s\033[0m\n' "$1"; }
+bad()  { printf '\033[31mFAIL\033[0m %s\n' "$1"; fail=1; }
+ok()   { printf '\033[32mok\033[0m   %s\n' "$1"; }
+
+# Files staged for this commit, added/copied/modified/renamed only. Deletions are
+# excluded: linting a path that no longer exists fails for the wrong reason.
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && { echo "nothing staged"; exit 0; }
+
+staged_rs=$(echo "$staged" | { grep -E '\.rs$' || true; })
+staged_py=$(echo "$staged" | { grep -E '\.py$' || true; })
+
+# -----------------------------------------------------------------------------
+#  1. Secret scan -- FIRST, because it is the only check whose failure is not
+#     recoverable by a later commit. Once a credential is in history, rewriting
+#     it is a bad afternoon and rotating it is mandatory anyway.
+# -----------------------------------------------------------------------------
+step "secret scan"
+
+# Patterns are deliberately narrow. A scanner that fires on the word "password"
+# gets disabled in a week; one that fires on `password = "hunter2"` does not.
+patterns=(
+    'postgres(ql)?://[^:]+:[^@[:space:]]+@'          # a real DSN with a password
+    '(secret|password|passwd|token)[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"']{8,}'
+    'AKIA[0-9A-Z]{16}'                               # AWS access key id
+    'gh[pousr]_[A-Za-z0-9]{36,}'                     # GitHub token
+    'sk-[A-Za-z0-9]{32,}'                            # OpenAI-style key
+    '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+)
+
+# Scan the staged CONTENT, not the working tree: the point is what is about to be
+# committed, which may differ from what is on disk. `:(exclude)` pathspecs skip
+# the two files that legitimately contain credential-shaped text -- this hook and
+# the environment template -- and handle filenames with spaces, which a
+# shell-expanded file list does not.
+diff_added=$(
+    git diff --cached -U0 --diff-filter=ACMR -- \
+        . ':(exclude).env.example' ':(exclude).githooks/pre-commit' \
+        | { grep -E '^\+' || true; } | { grep -v -E '^\+\+\+' || true; }
+)
+
+hits=0
+
+#  Strip well-known PLACEHOLDER credentials before scanning. `config/default.toml`
+#  and the `justfile` both carry the local development DSN
+#  `postgres://admet:changeme@localhost:5433/admet`, which the DSN pattern
+#  correctly recognises as "a connection string with an inline password" -- it
+#  simply is not a secret.
+#
+#  Filtering the VALUE rather than excluding those two files is the point: an
+#  `:(exclude)config/default.toml` pathspec would also stop the scanner noticing
+#  the day a real password is pasted into that same field. Nobody protects
+#  anything with `changeme`.
+placeholder_secrets=':(changeme|change-me|password|passwd|postgres|example|secret|hunter2|xxx+|placeholder|your[-_]?password)@'
+diff_added=$(
+    printf '%s\n' "$diff_added" | { grep -v -iE -e "$placeholder_secrets" || true; }
+)
+
+for p in "${patterns[@]}"; do
+    #  `-e` is load-bearing, not style. The private-key pattern begins with
+    #  `-----`, so `grep -inE "$p"` hands it to grep as OPTIONS: the result is
+    #  `grep: unknown option -- ---BEGIN...` and a scanner that fails on EVERY
+    #  commit no matter what is staged. A check that always fails is worse than
+    #  no check, because the fix everyone reaches for is `--no-verify`, which
+    #  switches off the fmt, clippy and test gates as well.
+    match=$(printf '%s\n' "$diff_added" | { grep -inE -e "$p" || true; } | head -3)
+    if [ -n "$match" ]; then
+        printf '  pattern: %s\n' "$p"
+        printf '%s\n' "$match"
+        hits=1
+    fi
+done
+
+if [ "$hits" -eq 1 ]; then
+    bad "possible credential in the staged diff (lines above)"
+    echo "     if it is a false positive:  git commit --no-verify"
+    echo "     if it is not:               rotate the credential, it is already compromised"
+else
+    ok "no credential patterns in the staged diff"
+fi
+
+# `.env` must never be committed even empty -- an empty tracked .env means the
+# next person's real one overwrites theirs on pull.
+if echo "$staged" | grep -qE '(^|/)\.env$'; then
+    bad ".env is staged -- it is gitignored for a reason; use .env.example"
+fi
+
+# -----------------------------------------------------------------------------
+#  2. Formatting. Cheap, and it keeps diffs about behaviour instead of whitespace.
+# -----------------------------------------------------------------------------
+if [ -n "$staged_rs" ]; then
+    step "cargo fmt --check"
+    if cargo fmt --all -- --check >/dev/null 2>&1; then
+        ok "formatted"
+    else
+        bad "unformatted Rust -- run: cargo fmt --all"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+#  3. Clippy with -D warnings. The whole workspace, because a change in
+#     admet-core routinely breaks a call site in admet-api.
+# -----------------------------------------------------------------------------
+if [ -n "$staged_rs" ]; then
+    step "cargo clippy -D warnings"
+    if cargo clippy --workspace --all-targets --quiet -- -D warnings 2>&1 | tail -25; then
+        ok "clippy clean"
+    else
+        bad "clippy warnings (output above)"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+#  4. admet-core tests ONLY.
+#
+#     This is ADR-02 paying for itself. admet-core has no I/O, so its suite needs
+#     no Postgres container, no .onnx and no free port -- which is what makes it
+#     fast enough to belong in a hook at all. The api/db suites run in CI.
+# -----------------------------------------------------------------------------
+if [ -n "$staged_rs" ]; then
+    step "cargo test -p admet-core"
+    if cargo test -p admet-core --quiet 2>&1 | tail -20; then
+        ok "domain tests pass"
+    else
+        bad "admet-core tests failed"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+#  5. Python: ruff only. Never pytest -- the training suite touches data files and
+#     is minutes, not seconds.
+# -----------------------------------------------------------------------------
+if [ -n "$staged_py" ]; then
+    step "ruff"
+    if command -v ruff >/dev/null 2>&1; then
+        if ruff check $staged_py && ruff format --check $staged_py; then
+            ok "python clean"
+        else
+            bad "ruff -- run: ruff check --fix . && ruff format ."
+        fi
+    else
+        echo "note: ruff not installed, skipping (uv tool install ruff)"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+#  6. Commit-hygiene warnings. Advisory: these do not block, because the right
+#     moment to notice a stray dbg! is now, and the wrong response is to make a
+#     debug commit impossible.
+# -----------------------------------------------------------------------------
+step "hygiene"
+if echo "$diff_added" | grep -qE '(dbg!|println!\("DEBUG|unimplemented!\(|todo!\()'; then
+    echo "note: staged diff contains dbg!/todo!/unimplemented! -- intentional?"
+fi
+if [ -n "$staged_rs" ] && echo "$diff_added" | grep -qE '\.unwrap\(\)' ; then
+    echo "note: new .unwrap() in staged Rust -- fine in tests, a panic in a handler"
+fi
+ok "hygiene notes above are advisory"
+
+# -----------------------------------------------------------------------------
+printf '\n'
+if [ "$fail" -ne 0 ]; then
+    printf '\033[31mpre-commit FAILED\033[0m -- nothing committed\n'
+    exit 1
+fi
+printf '\033[32mpre-commit passed\033[0m\n'
+exit 0

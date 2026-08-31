@@ -1,0 +1,238 @@
+# =============================================================================
+#  ADMETriage CI
+#
+#  Manual Listing 26.2. Four jobs, deliberately parallel rather than one long
+#  script: when `check` fails on formatting you find out in ninety seconds
+#  instead of waiting for the test job to finish first.
+#
+#  Design rule for this file: the badge must be green from the first commit.
+#  A red badge that everyone knows to ignore is worse than no badge, because it
+#  costs the same and signals nothing. Jobs for parts of the system that do not
+#  exist yet are commented out with the increment that turns them on.
+# =============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  # Hand-runnable, which matters when debugging the workflow itself: pushing
+  # sixteen "fix ci" commits to find a typo is a bad afternoon.
+  workflow_dispatch:
+
+# A new push to the same branch cancels the previous run. Without this, a busy
+# afternoon queues six runs of a workflow whose answer changed five commits ago.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Fail on any warning, everywhere, without repeating -D warnings per command.
+  RUSTFLAGS: -D warnings
+  # CI never needs incremental state and it makes the cache much larger.
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  # ---------------------------------------------------------------------------
+  #  Formatting and lints. Fastest job, so it is the one that gives early
+  #  feedback on the most common mistake.
+  # ---------------------------------------------------------------------------
+  check:
+    name: fmt + clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      # Caches ~/.cargo and target/ keyed on Cargo.lock. Turns a four-minute
+      # cold build into about forty seconds.
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --all -- --check
+
+      # --all-targets covers tests, benches and examples. Without it, clippy
+      # skips exactly the code that rots fastest, because nothing else compiles
+      # a #[cfg(test)] module.
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features
+
+      # Doc warnings are real warnings: a broken intra-doc link means the
+      # published documentation has a dead link, which is how nobody reads it.
+      # RUSTDOCFLAGS, not RUSTFLAGS -- rustdoc does not read the latter, so
+      # setting only RUSTFLAGS above would leave this step permissive.
+      - name: Docs
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps --document-private-items
+
+  # ---------------------------------------------------------------------------
+  #  Tests.
+  #
+  #  The Postgres service starts even though no test uses it yet. That is on
+  #  purpose: the container config, the health check and the URL are the part
+  #  that goes wrong, and finding that out now costs nothing, whereas finding it
+  #  out in Increment 2 costs it alongside a schema you are also debugging.
+  # ---------------------------------------------------------------------------
+  test:
+    name: test (workspace)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: admet
+          POSTGRES_PASSWORD: changeme
+          POSTGRES_DB: admet_test
+        ports:
+          - 5432:5432
+        # Without the health check the job races the container and fails
+        # intermittently, which is the worst kind of CI failure because it
+        # teaches you to re-run rather than to read.
+        options: >-
+          --health-cmd "pg_isready -U admet"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://admet:changeme@localhost:5432/admet_test
+      ADMET_DATABASE__URL: postgres://admet:changeme@localhost:5432/admet_test
+      ADMET_PROFILE: ci
+      # Recorded into /version, so a deployed binary can be traced to a commit.
+      ADMET_GIT_COMMIT: ${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      # JUnit XML rather than plain output, because the test-report chapter needs
+      # a machine-readable record of which tests ran and how long they took.
+      # A screenshot of a terminal is not evidence.
+      - name: Run tests
+        run: cargo nextest run --workspace --profile ci
+
+      - name: Upload test results
+        # `always()`, not the default: the report is most useful precisely when
+        # the job failed, and the default would skip the upload then.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: target/nextest/ci/junit.xml
+          if-no-files-found: warn
+
+      # Doctests are the one thing nextest does not run. A doc example that no
+      # longer compiles is documentation that actively misleads.
+      - name: Doctests
+        run: cargo test --workspace --doc
+
+  # ---------------------------------------------------------------------------
+  #  Dependency advisories. Separate job so a new RUSTSEC advisory does not look
+  #  like a test failure -- it is not one, and confusing the two wastes the
+  #  first ten minutes of triage.
+  # ---------------------------------------------------------------------------
+  audit:
+    name: audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  #  Python side: lint and the training-code tests.
+  #
+  #  No training run in CI. A GitHub runner has no GPU, twelve endpoints take
+  #  hours, and a CI job that takes hours is a CI job nobody waits for. What is
+  #  checked here is that the code is importable and the pure functions are
+  #  correct -- notably scaffold_split, which the Rust side must reproduce.
+  # ---------------------------------------------------------------------------
+  python:
+    name: python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install
+        run: |
+          uv venv
+          uv pip install -r requirements.txt
+          uv pip install ruff pytest
+
+      - name: Lint
+        run: |
+          uv run ruff check training
+          uv run ruff format --check training
+
+      - name: Tests
+        # `|| true` on an empty suite would hide a real failure, so instead the
+        # step is conditional on the directory existing. Increment 1 creates it.
+        run: |
+          if [ -d training/tests ] && [ -n "$(find training/tests -name 'test_*.py' -print -quit)" ]; then
+            uv run pytest training/tests -q
+          else
+            echo "no python tests yet (Increment 1)"
+          fi
+
+  # ---------------------------------------------------------------------------
+  #  UNCOMMENT AT INCREMENT 3, when web/package.json exists.
+  #
+  #  Left in place rather than written later so the shape is already agreed and
+  #  turning it on is deleting comment markers, not designing a job under time
+  #  pressure in week nine.
+  # ---------------------------------------------------------------------------
+  # web:
+  #   name: web
+  #   runs-on: ubuntu-latest
+  #   defaults:
+  #     run:
+  #       working-directory: web
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version-file: .nvmrc
+  #         cache: pnpm
+  #         cache-dependency-path: web/pnpm-lock.yaml
+  #     - run: corepack enable pnpm
+  #     - run: pnpm install --frozen-lockfile
+  #     - run: pnpm run check          # svelte-check: types AND unused a11y props
+  #     - run: pnpm run lint
+  #     - run: pnpm run test:unit
+  #     - run: pnpm run build          # a type error that only appears in a
+  #                                    # production build is still a type error
+
+  # ---------------------------------------------------------------------------
+  #  UNCOMMENT AT INCREMENT 4. Needs a trained model, so it cannot run before
+  #  one exists as a release asset.
+  # ---------------------------------------------------------------------------
+  # parity:
+  #   name: featuriser parity (TR-03)
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - uses: astral-sh/setup-uv@v5
+  #     - run: uv venv && uv pip install -r requirements.txt
+  #     - run: uv run python training/scripts/dump_parity_fixture.py
+  #     - run: cargo test -p admet-infer --test onnx_parity
