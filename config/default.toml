@@ -1,0 +1,86 @@
+# =============================================================================
+#  ADMETriage -- base configuration
+#
+#  Lowest layer of three (chapter 26.3):
+#
+#    1. this file                    committed; documents what is configurable
+#    2. config/{ADMET_PROFILE}.toml  optional per-environment overlay
+#    3. ADMET_* environment          deployment values and every secret
+#
+#  Every key below must exist, because `Settings` has no `Option` fields and no
+#  serde defaults. That is deliberate: a missing key fails at start-up, by name,
+#  instead of silently taking a value nobody chose.
+#
+#  Environment override syntax uses `__` for nesting:
+#
+#    ADMET_SERVER__PORT=9000            -> [server] port
+#    ADMET_DATABASE__URL=postgres://... -> [database] url
+#    ADMET_SERVER__CORS_ORIGINS=a,b     -> [server] cors_origins  (comma list)
+#
+#  NOTHING SECRET GOES IN THIS FILE. It is in git. `git rm` does not remove a
+#  password from history.
+# =============================================================================
+
+[server]
+# Loopback, not 0.0.0.0. There is no authentication on any route until
+# Increment 3 (FR-23 / UC-07), so the default must not be reachable from the
+# local network. The container profile sets 0.0.0.0, which is correct there
+# because the network namespace is the boundary.
+host = "127.0.0.1"
+port = 8080
+
+# TR-06. 20 MiB is roughly a 200,000-row SMILES CSV. This is a
+# memory-exhaustion control, not a tuning knob.
+max_body_bytes = 20971520
+
+# Seconds. TR-06 again: a request that cannot finish in 30 s is holding a
+# connection and a worker for no benefit.
+timeout_secs = 30
+
+# Explicit list, never "*". Vite dev server first, then the Tauri webview origin
+# that Increment 5 needs. A wildcard cannot be combined with a session cookie --
+# browsers refuse it -- so a wildcard here would be a broken policy, not a lax one.
+cors_origins = ["http://localhost:5173", "http://127.0.0.1:5173", "tauri://localhost"]
+
+[database]
+# PLACEHOLDER. Overridden by ADMET_DATABASE__URL everywhere real. Port 5433 on
+# purpose: it does not collide with a system Postgres already on 5432, which is
+# the single most common "why is my password wrong" hour lost on Windows.
+url = "postgres://admet:changeme@localhost:5433/admet"
+
+# Small on purpose. See admet_db::DEFAULT_MAX_CONNECTIONS -- Postgres backends
+# cost ~10 MB each and a pool larger than the CPU count queues work inside the
+# database instead of in the application, where it is invisible.
+max_connections = 10
+
+# True for a single instance. Set false when running several: concurrent
+# instances race on the advisory migration lock and the losers time out
+# mid-deployment.
+migrate_on_start = true
+
+[model]
+# Produced by Increment 1 (`just export`). Absent until then; the server starts
+# anyway and reports it on /readyz.
+path = "models/model.onnx"
+
+# One, not "all cores". The server already has request-level parallelism;
+# intra-op threads compete with it. Measure with `just bench` before changing.
+intra_threads = 1
+
+# Micro-batch ceiling for the Increment-2 inference worker (NFR-02, TR-08).
+max_batch = 64
+
+# Must equal admet_core::features::SCHEMA_VERSION. A mismatch means the
+# featuriser and the model disagree about what column 17 means, so the service
+# refuses to start rather than serving confidently wrong numbers.
+feature_schema_version = 1
+
+[cache]
+# ~50,000 entries at ~200 B each is about 10 MB. Keyed on
+# (inchikey, model_version) per ADR-04, so a model upgrade invalidates by
+# construction rather than by remembering to flush.
+capacity = 50000
+
+# 16 shards keeps lock contention low without making each shard's LRU list so
+# short that eviction stops approximating global LRU.
+shards = 16

@@ -1,0 +1,179 @@
+# ADMETriage -- Rust workspace
+#
+# Python trains. Rust serves. This half of the project owns everything on the
+# request path, and nothing on the training path.
+#
+# Crate roles, and the dependency direction between them:
+#
+#   admet-core    pure domain logic -- SMILES parsing, canonicalisation,
+#                 33-dim featurisation, fingerprints, scaffolds, triage.
+#                 ZERO I/O. No database, no network, no filesystem.
+#   admet-infer   ONNX Runtime session management, micro-batching, LRU cache,
+#                 applicability domain.
+#   admet-db      PostgreSQL / SQLite persistence via sqlx.
+#   admet-api     Axum HTTP surface -- the deployable binary.
+#   admet-cli     offline batch scoring; useful for demos and benchmarks.
+#
+# Every dependency arrow points INWARD toward admet-core; nothing inside it
+# points out. That is hexagonal architecture, it is ADR-02, and it is the reason
+# the test suite is fast enough that you actually run it: admet-core compiles in
+# about two seconds and its tests run in milliseconds, so property-based testing
+# over thousands of generated inputs is affordable.
+#
+# It also pays off concretely at Increment 5: the desktop build swaps Postgres
+# for SQLite and HTTP for Tauri IPC, and admet-core plus admet-infer are
+# untouched. Two of five crates change; three do not.
+
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+# Edition 2021, not 2024. Nothing here needs 2024, and 2021 compiles on every
+# toolchain you are likely to meet -- including whatever your college lab has
+# installed. Bump it when something actually asks for it.
+edition = "2021"
+# A compatibility floor, not a pin. rust-toolchain.toml pins the channel to
+# `stable`; this states the oldest compiler the code is known to build on, so a
+# lab machine running something older fails with a clear message instead of a
+# hundred confusing syntax errors.
+rust-version = "1.83"
+license = "LicenseRef-Proprietary"
+publish = false
+
+# =============================================================================
+#  Shared dependency versions.
+#
+#  Every crate writes `axum.workspace = true` instead of pinning its own
+#  version. One place to upgrade, and no possibility of two crates disagreeing
+#  about the same library -- which in Rust means two incompatible copies of a
+#  type with the same name, and an error message that explains nothing.
+#
+#  Entries here are INERT until a member crate opts in. So this table can
+#  describe the whole project while the scaffold only activates what it needs;
+#  adding a crate later is a one-line change in that crate, not here.
+# =============================================================================
+[workspace.dependencies]
+
+# --- internal crates ---------------------------------------------------------
+# Path dependencies declared here so a member writes `admet-core.workspace =
+# true` and the arrow is visible in one place. Reading this block top to bottom
+# is the fastest way to check ADR-02 still holds: admet-core must appear as a
+# dependency of others and must itself depend on none of them.
+admet-core = { path = "crates/admet-core" }
+admet-infer = { path = "crates/admet-infer" }
+admet-db = { path = "crates/admet-db" }
+
+# --- inference ---------------------------------------------------------------
+# Pinned with `=` on purpose. `ort` 2.0 is still a release candidate, and rc
+# builds are permitted to break their API between numbers. An exact pin means
+# `cargo update` cannot silently move you to rc.14 and turn a working parity
+# test into forty compile errors on a Tuesday morning. This is risk R6, and the
+# mitigation is this line plus keeping ort behind a single type (Engine).
+ort = "=2.0.0-rc.13"
+ndarray = "0.16"
+
+# --- async runtime and HTTP --------------------------------------------------
+tokio = { version = "1", features = ["full"] }
+axum = "0.8"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-br", "limit", "timeout"] }
+
+# --- persistence -------------------------------------------------------------
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls",   # NOT native-tls: on Windows that means hunting for OpenSSL
+    "postgres",
+    "uuid",
+    "chrono",
+    "json",
+    "migrate",
+    "macros",
+] }
+
+# --- serialisation -----------------------------------------------------------
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+csv = "1.3"
+
+# --- domain types ------------------------------------------------------------
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# --- errors ------------------------------------------------------------------
+# thiserror for LIBRARY errors the caller must match on; anyhow for BINARY
+# errors nobody matches on. admet-core and admet-infer use thiserror only --
+# a library that returns anyhow forces every caller to stringly-type its
+# error handling.
+thiserror = "2"
+anyhow = "1"
+
+# --- observability -----------------------------------------------------------
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# --- configuration -----------------------------------------------------------
+config = { version = "0.14", default-features = false, features = ["toml"] }
+
+# --- security ----------------------------------------------------------------
+argon2 = "0.5"
+# rand 0.8, not 0.9: argon2 0.5 exposes rand_core 0.6 in its public API, and
+# mixing rand_core versions produces a type mismatch on OsRng that reads like
+# nonsense. Upgrade both together or neither.
+rand = "0.8"
+
+# --- performance -------------------------------------------------------------
+rayon = "1.10"
+# parking_lot rather than std: smaller, faster when uncontended, and it does not
+# poison on panic. The sharded cache in admet-infer holds 16 of these.
+parking_lot = "0.12"
+# FxHasher. Not cryptographic, and deliberately so -- it hashes the Morgan
+# refinement labels and cache keys, where speed is the only property that
+# matters and the input is not adversarial.
+rustc-hash = "2"
+
+# --- CLI ---------------------------------------------------------------------
+clap = { version = "4", features = ["derive"] }
+
+# --- testing and benchmarking ------------------------------------------------
+# proptest asserts invariants over thousands of generated inputs rather than the
+# handful of examples you thought of. "The parser never panics on arbitrary
+# input" is a security control as much as a correctness one, since the parser
+# accepts untrusted input. Very few undergraduate projects do this.
+proptest = "1"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# =============================================================================
+#  Build profiles
+# =============================================================================
+[profile.release]
+opt-level = 3
+# `thin` LTO, not the `fat` the Build Manual specifies -- deliberately, and
+# temporarily.
+#
+# Manual ch. 24.2 lists "release profile: LTO + codegen-units=1" as
+# optimisation #4, worth 10-25%. That is a number to MEASURE, not to assume.
+# Shipping `fat` from day one means you never see the before-and-after, and the
+# performance chapter gets a claim with no evidence behind it.
+#
+# So: benchmark on `thin`, switch this line to `fat`, benchmark again, and put
+# both numbers in the table with the hardware named. Then leave it on `fat`.
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+[profile.bench]
+inherits = "release"
+# Keep symbols so flamegraphs are readable. Stripping them turns
+# `cargo flamegraph` output into a wall of hex addresses, which is exactly as
+# useful as no profile at all.
+debug = true
+strip = "none"
+# NOTE on panics: Criterion's harness needs unwinding, and this profile inherits
+# `panic = "abort"` from release. Cargo IGNORES `panic` for the bench profile and
+# always unwinds, so benches work regardless. The key is deliberately not set
+# here: stating it emitted `warning: `panic` setting is ignored for `bench`
+# profile` on every single build, and a permanent warning is how real warnings
+# get missed.

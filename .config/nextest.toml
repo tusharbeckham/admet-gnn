@@ -1,0 +1,49 @@
+# =============================================================================
+#  cargo-nextest configuration
+#
+#  Two profiles. `default` is what you run locally; `ci` is what the workflow
+#  runs, and the difference is entirely about producing evidence rather than
+#  about which tests run.
+# =============================================================================
+
+[profile.default]
+# Show output for failures only. A passing test's println! is noise; a failing
+# test's println! is the reason you added it.
+failure-output = "immediate"
+success-output = "never"
+status-level = "fail"
+
+# A unit test in admet-core that takes ten seconds is not a unit test any more.
+# This warns rather than kills, because the first time it fires the useful
+# information is which test, not a truncated backtrace.
+slow-timeout = { period = "10s", terminate-after = 6 }
+
+[profile.ci]
+# Print each test as it starts. When CI hangs, the last line printed is the
+# culprit -- with the default this file's `status-level` would hide it.
+status-level = "all"
+failure-output = "immediate-final"
+fail-fast = false          # report every failure in one run, not just the first
+final-status-level = "slow"
+
+[profile.ci.junit]
+# The machine-readable record the test-report chapter cites. Written to
+# target/nextest/ci/junit.xml and uploaded as an artefact.
+path = "junit.xml"
+store-success-output = false
+store-failure-output = true
+
+# =============================================================================
+#  Test groups
+#
+#  Uncomment at Increment 2. Integration tests that share one Postgres database
+#  cannot run concurrently -- they truncate each other's tables mid-assertion and
+#  the failure looks random, which is how a whole afternoon disappears into a
+#  "flaky test" that was never flaky.
+# =============================================================================
+# [test-groups]
+# serial-db = { max-threads = 1 }
+#
+# [[profile.default.overrides]]
+# filter = "package(admet-db) or test(/^db_/)"
+# test-group = "serial-db"
