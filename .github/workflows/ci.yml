@@ -202,7 +202,11 @@ jobs:
         # complete -- zero of the named tests exist yet and the document says so. It
         # will fail the day someone writes TC-U-090 without updating §9, which is
         # the intended behaviour.
-        run: python scripts/check-traceability.py
+        # `python3`, not `python`. The Ubuntu runner image provides `python3`; a
+        # bare `python` is not guaranteed, and when it is missing this step failed
+        # with exit 2 and no output at all -- which looks like a script bug rather
+        # than a missing interpreter.
+        run: python3 scripts/check-traceability.py
 
   # ---------------------------------------------------------------------------
   #  report -- the graded document must still compile.
@@ -213,10 +217,15 @@ jobs:
   #  build dependency: rename a key in either artefact and the report stops
   #  compiling. Better to learn that here than the week it is due.
   #
-  #  Needs no Rust and no Python -- both inputs are committed.
+  #  Needs no Python -- both inputs are committed.
   #
-  #  `taiki-e/install-action` is already trusted by the `test` job for nextest, so
-  #  installing typst through it adds no new supply-chain root.
+  #  On the typst install: `taiki-e/install-action` does not carry typst (it exits
+  #  86, "tool not supported"), and a dedicated setup-typst action would introduce a
+  #  new third-party trust root for one binary. `cargo install` uses crates.io,
+  #  which this project already depends on for nextest, cargo-audit and llvm-cov, so
+  #  no new root is added. The version is pinned and `--locked` uses the crate's own
+  #  lockfile, so the build is reproducible; `rust-cache` keeps it off the critical
+  #  path after the first run.
   # ---------------------------------------------------------------------------
   report:
     name: report
@@ -224,9 +233,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: taiki-e/install-action@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
         with:
-          tool: typst
+          key: typst-0.15.1
+
+      - name: Install typst
+        run: cargo install typst-cli --locked --version 0.15.1
 
       - name: Compile
         run: typst compile --root . docs/report/main.typ docs/report/ADMETriage.pdf
