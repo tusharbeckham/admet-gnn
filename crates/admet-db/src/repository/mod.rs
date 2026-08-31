@@ -1,7 +1,7 @@
 //! Repositories: one type per aggregate, each owning its SQL.
 //!
 //! Manual chapter 20.3. The pattern is deliberately plain -- a struct holding a
-//! [`PgPool`], with one method per query. No generic repository trait, no ORM.
+//! [`crate::Pool`], with one method per query. No generic repository trait, no ORM.
 //!
 //! # Why not a trait
 //!
@@ -18,7 +18,7 @@
 //!
 //! # Cloning the pool is free
 //!
-//! [`PgPool`] is an `Arc` around shared state, so each repository owns a clone
+//! [`crate::Pool`] is an `Arc` around shared state, so each repository owns a clone
 //! rather than borrowing. That keeps lifetimes out of the handler signatures in
 //! `admet-api`, which is worth more than the pointer copy costs.
 

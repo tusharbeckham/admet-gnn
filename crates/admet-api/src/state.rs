@@ -6,7 +6,7 @@
 //! # Why `Arc` and not a global
 //!
 //! Axum clones the state for every request, so anything in here must be cheap to
-//! clone. [`PgPool`](sqlx::PgPool) is already an `Arc` internally; the model
+//! clone. [`admet_db::Pool`] is already an `Arc` internally; the model
 //! engine is not, so it gets wrapped. The alternative -- a `static` with a
 //! `OnceLock` -- works and is worse: state that arrives as a parameter can be
 //! substituted in a test, and state reached through a global cannot.

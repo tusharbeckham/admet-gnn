@@ -62,7 +62,7 @@ impl RingTable {
     ///
     /// Overwrites any existing entry. The caller checks [`RingTable::is_open`]
     /// first when it needs to distinguish opening from closing — which
-    /// [`RingTable::close`] does.
+    /// [`RingTable::take`] does.
     #[inline]
     pub fn open(&mut self, label: u8, atom: u32, kind: BondKind) {
         self.slots[label as usize] = Some((atom, kind));

@@ -161,7 +161,14 @@ bench:
 # =============================================================================
 
 # What CI runs. If this is green locally, CI will be green.
-check: fmt-check lint audit
+#
+#  That sentence is a promise, and it was false twice on the first real CI run:
+#  `check` omitted `cargo doc` and the Python lint, so a broken intra-doc link
+#  (`RingTable::close`, which does not exist) and two `EXE001` findings reached
+#  GitHub instead of being caught here. `EXE001` cannot fire on Windows at all --
+#  there is no executable bit to be missing -- which is exactly why the local gate
+#  has to run the same commands rather than a convenient subset.
+check: fmt-check lint docs-check lint-py audit
 
 fmt:
     cargo fmt --all
@@ -172,13 +179,31 @@ fmt-check:
 # `-D warnings` is the point. A warning nobody has to fix is a warning nobody
 # reads, and by week six there are two hundred of them.
 lint:
-    cargo clippy --workspace --all-targets -- -D warnings
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+# Rustdoc as a GATE, not a nicety. `-D warnings` turns a broken intra-doc link
+# into a failure, which matters because these documents are graded: a design doc
+# that links to a method that does not exist is wrong about the code it describes.
+docs-check:
+    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-items
+
+# Python lint AND format, both in check mode -- CI runs both, and `ruff check`
+# alone passes on badly formatted code.
+lint-py:
+    {{py}} -m ruff check .
+    {{py}} -m ruff format --check .
 
 audit:
     cargo audit
 
 # Full suite, both languages.
-test: test-rust test-py
+test: test-rust test-doc test-py
+
+# Doc tests, which `cargo nextest` does NOT run -- nextest has no doctest support,
+# so a suite that only uses nextest silently skips every example in the docs. CI
+# runs this as its own step for the same reason.
+test-doc:
+    cargo test --workspace --doc
 
 # nextest for the JUnit XML that the test-report chapter needs; falls back to
 # `cargo test` if nextest is not installed yet.
