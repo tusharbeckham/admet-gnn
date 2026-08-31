@@ -1,0 +1,44 @@
+[package]
+name = "admet-core"
+description = "Pure domain logic for ADMETriage: SMILES parsing, canonicalisation, featurisation, fingerprints, scaffolds, triage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# =============================================================================
+#  THE DEPENDENCY LIST IS THE ARCHITECTURE (ADR-02)
+#
+#  This crate has no database, no network, no filesystem and no async runtime.
+#  Only pure functions over data structures. Consequences, all of them good:
+#
+#    - it compiles in about two seconds, so the edit/test loop stays tight
+#    - its tests run in milliseconds, so 180 of them cost nothing
+#    - property-based testing over thousands of generated inputs is affordable
+#    - it is trivially Send + Sync, so batch processing parallelises for free
+#    - the Tauri desktop build reuses it byte-for-byte (Increment 5)
+#
+#  Before adding a dependency here, check it is not I/O. If it is, the code
+#  wanting it belongs in admet-db, admet-api or admet-cli instead. The one
+#  exception below is serde, and only for the feature-schema contract that both
+#  languages must read from a single source of truth.
+# =============================================================================
+[dependencies]
+thiserror = { workspace = true }
+# Serialising the 33-feature layout, not doing I/O with it. The schema is data
+# shared with the Python featuriser -- see features.rs and TR-03.
+serde = { workspace = true }
+serde_json = { workspace = true }
+# Non-cryptographic hashing for Morgan refinement labels. Deliberately not a
+# cryptographic hash: the input is a molecular graph, not an adversary, and
+# speed is the only property that matters here.
+rustc-hash = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "core"
+harness = false

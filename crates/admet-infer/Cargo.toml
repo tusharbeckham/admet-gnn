@@ -1,0 +1,24 @@
+[package]
+name = "admet-infer"
+description = "ONNX Runtime inference for ADMETriage: session management and tensor plumbing"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+# Default features are what you want on Windows. They include
+# `download-binaries` (fetches a matching ONNX Runtime build instead of making
+# you hunt for DLLs) and `copy-dylibs` (drops those DLLs next to the compiled
+# artefact). Disabling them is the single most common reason an `ort` project
+# builds fine and then panics at runtime with a version-mismatch assertion,
+# because Windows ships its own older onnxruntime.dll and wins the search.
+ort = { workspace = true }
+# ndarray is deliberately ABSENT. `ort` accepts `(shape, Vec<f32>)` directly, so
+# routing tensors through ndarray added a second version constraint that must
+# agree with whatever `ort` was compiled against -- for zero benefit.
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

@@ -1,0 +1,45 @@
+[package]
+name = "admet-api"
+description = "Axum HTTP service for ADMETriage: the deployable binary"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# =============================================================================
+#  The only crate that is a BINARY, and the only one that knows about HTTP.
+#
+#  It composes: admet-core for chemistry, admet-infer for the model, admet-db for
+#  persistence. It contains no chemistry and no SQL of its own. If a handler
+#  starts to grow logic worth unit-testing, that logic belongs in admet-core --
+#  which is testable in milliseconds without a runtime, a socket or a database.
+#
+#  The rule of thumb: a handler should read as parse -> delegate -> map to a
+#  status code. Anything longer is a hint that a domain function is missing.
+# =============================================================================
+[dependencies]
+admet-core = { workspace = true }
+admet-infer = { workspace = true }
+admet-db = { workspace = true }
+
+axum = { workspace = true }
+tokio = { workspace = true }
+tower = { workspace = true }
+# CORS, tracing, body-size limits, timeouts and Brotli -- all five are policy
+# that belongs in middleware rather than in every handler. The 20 MB body cap
+# (NFR-05) and 30 s timeout are the two that are load-bearing for security: an
+# unbounded body is a trivial memory-exhaustion vector.
+tower-http = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# anyhow in the binary, thiserror in the libraries. Nobody matches on an error
+# in `main`; it gets logged and the process exits.
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+config = { workspace = true }
