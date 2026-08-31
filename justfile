@@ -178,7 +178,7 @@ bench:
 #  GitHub instead of being caught here. `EXE001` cannot fire on Windows at all --
 #  there is no executable bit to be missing -- which is exactly why the local gate
 #  has to run the same commands rather than a convenient subset.
-check: fmt-check lint docs-check lint-py audit
+check: fmt-check lint docs-check lint-py trace audit
 
 fmt:
     cargo fmt --all
@@ -202,6 +202,20 @@ docs-check:
 lint-py:
     {{py}} -m ruff check .
     {{py}} -m ruff format --check .
+
+# Is docs/04-traceability.md still telling the truth?
+#
+#  §1 of that document has claimed since August that the matrix is "machine-checked"
+#  and spells the check out as four shell greps. Nothing ran them. On its first run
+#  the script found the gap summary claimed 61 distinct `TC-` tokens where the file
+#  contains 81 -- a hand count of an undefined metric, wrong on the day it was
+#  written (DEF-16).
+#
+#  The gate is "the document's claims reproduce", NOT "the matrix is complete". At
+#  the scaffold tag zero of the named tests exist and the document says so; a gate
+#  that could not go green until the project was finished would simply be disabled.
+trace:
+    {{py}} scripts/check-traceability.py
 
 audit:
     cargo audit

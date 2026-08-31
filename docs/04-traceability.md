@@ -244,9 +244,24 @@ greps and they either reproduce or this section is stale.
 | …cited in this matrix | **56** | `diff` against the register is empty ✅ |
 | FR/TR rows whose `Code` cell exists today | **27** of 36 | 16 FR + 11 TR, stub or real |
 | FR/TR rows still `→` in `Code` | 9 of 36 | 8 FR + 1 TR: Increments 3–5, `web/` and batch |
-| Distinct `TC-` IDs cited here | 61 | 23 U, 14 I, 13 SYS, 5 P, 6 S |
+| Distinct literal `TC-` tokens appearing here | **81** | 33 U, 19 I, 15 SYS, 6 P, 8 S. See the note below — this is not the number of planned tests. |
 | …that exist in `crates/` or `training/` | **0** | every `Test` cell is a `→` |
 | Test-plan target for the finished suite | ~258 | [`03-test-plan.md`](03-test-plan.md) §3.1 |
+
+> **What the `TC-` count does and does not mean.** It counts distinct literal
+> `TC-…` tokens in this file, because that is the only definition a script can
+> check. It is *not* the number of planned tests, and it cannot be: §8 abbreviates
+> with ranges (`TC-U-001 … TC-U-009`), so a range of nine contributes two tokens,
+> while §4–§6 name individual IDs that fall inside those ranges.
+>
+> This row previously read **61**, which reproduced under no counting method —
+> every category was low (23 vs 33 U, 14 vs 19 I, 13 vs 15 SYS, 5 vs 6 P, 6 vs 8 S).
+> It was a hand count of an undefined metric, and it was wrong on the day it was
+> written. Logged as DEF-16 and found by `scripts/check-traceability.py` on its
+> first run — which is the argument for the script existing at all, given §1 has
+> claimed since August that this matrix was "machine-checked".
+>
+> The unambiguous number is the row beneath it: **0** of these tests exist.
 
 The row that matters is the sixth. **Not one test named in this document exists
 yet**, and the honest reading of that is: *this matrix currently traces requirements

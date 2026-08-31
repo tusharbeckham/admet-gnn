@@ -194,6 +194,52 @@ jobs:
             echo "no python tests yet (Increment 1)"
           fi
 
+      - name: Traceability
+        # docs/04-traceability.md §1 claims the matrix is "machine-checked". This is
+        # the step that makes that true. Standard library only, so no install step.
+        #
+        # It gates on the document's claims REPRODUCING, not on the matrix being
+        # complete -- zero of the named tests exist yet and the document says so. It
+        # will fail the day someone writes TC-U-090 without updating §9, which is
+        # the intended behaviour.
+        run: python scripts/check-traceability.py
+
+  # ---------------------------------------------------------------------------
+  #  report -- the graded document must still compile.
+  #
+  #  docs/report/main.typ reads its numbers out of models/feature_schema.json and
+  #  docs/evidence/increment-1/data_profile.json with Typst's `json()`, so that no
+  #  figure in the report is ever hand-copied. The cost of that design is a real
+  #  build dependency: rename a key in either artefact and the report stops
+  #  compiling. Better to learn that here than the week it is due.
+  #
+  #  Needs no Rust and no Python -- both inputs are committed.
+  #
+  #  `taiki-e/install-action` is already trusted by the `test` job for nextest, so
+  #  installing typst through it adds no new supply-chain root.
+  # ---------------------------------------------------------------------------
+  report:
+    name: report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: typst
+
+      - name: Compile
+        run: typst compile --root . docs/report/main.typ docs/report/ADMETriage.pdf
+
+      - name: Upload
+        # A reviewable artefact per run. The PDF is gitignored on purpose -- the
+        # .typ source is what gets reviewed, and a binary diff per edit is useless.
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-pdf
+          path: docs/report/ADMETriage.pdf
+          if-no-files-found: error
+
   # ---------------------------------------------------------------------------
   #  UNCOMMENT AT INCREMENT 3, when web/package.json exists.
   #
