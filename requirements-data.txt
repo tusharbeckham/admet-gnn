@@ -10,7 +10,7 @@
 #      .venv-tdc\Scripts\Activate.ps1        # Windows PowerShell
 #      source .venv-tdc/bin/activate         # macOS / Linux
 #      uv pip install -r requirements-data.txt
-#      python training/data/download.py
+#      python training/data/download_tdc.py
 #      deactivate
 #
 #  If rdkit has no wheel for 3.12 at this old pin, use --python 3.11 for

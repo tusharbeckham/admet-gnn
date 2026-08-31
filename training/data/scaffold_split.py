@@ -6,6 +6,7 @@ appears in more than one split. This is what makes the split a genuine test
 of generalization to new chemistry, per MoleculeNet's own recommendation.
 Never swap this for a random split on these datasets -- see research.md §6.
 """
+
 from __future__ import annotations
 
 import random
@@ -34,7 +35,9 @@ def scaffold_split(
     seed: int = 42,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Split a dataframe into train/val/test by scaffold group."""
-    assert abs(frac_train + frac_val + frac_test - 1.0) < 1e-6, "fractions must sum to 1.0"
+    assert abs(frac_train + frac_val + frac_test - 1.0) < 1e-6, (
+        "fractions must sum to 1.0"
+    )
 
     scaffolds: dict[str, list[int]] = defaultdict(list)
     for idx, smiles in enumerate(df[smiles_col]):
@@ -79,17 +82,26 @@ def scaffold_split(
 if __name__ == "__main__":
     # Self-test: benzene/toluene share a scaffold and must land in the same
     # split; naphthalene and ethanol have different scaffolds.
-    test_df = pd.DataFrame({
-        "canonical_smiles": [
-            "c1ccccc1",        # benzene
-            "Cc1ccccc1",       # toluene (same benzene scaffold)
-            "c1ccc2ccccc2c1",  # naphthalene (different scaffold)
-            "CCO",             # ethanol (no ring -> empty scaffold)
-        ]
-    })
-    train, val, test = scaffold_split(test_df, frac_train=0.5, frac_val=0.25, frac_test=0.25, seed=0)
+    test_df = pd.DataFrame(
+        {
+            "canonical_smiles": [
+                "c1ccccc1",  # benzene
+                "Cc1ccccc1",  # toluene (same benzene scaffold)
+                "c1ccc2ccccc2c1",  # naphthalene (different scaffold)
+                "CCO",  # ethanol (no ring -> empty scaffold)
+            ]
+        }
+    )
+    train, val, test = scaffold_split(
+        test_df, frac_train=0.5, frac_val=0.25, frac_test=0.25, seed=0
+    )
 
-    benzene_split = "train" if 0 in train.index or "c1ccccc1" in train["canonical_smiles"].values else None
-    assert ("c1ccccc1" in train["canonical_smiles"].values) == ("Cc1ccccc1" in train["canonical_smiles"].values), \
-        "benzene and toluene share a scaffold and must land in the same split"
+    benzene_split = (
+        "train"
+        if 0 in train.index or "c1ccccc1" in train["canonical_smiles"].values
+        else None
+    )
+    assert ("c1ccccc1" in train["canonical_smiles"].values) == (
+        "Cc1ccccc1" in train["canonical_smiles"].values
+    ), "benzene and toluene share a scaffold and must land in the same split"
     print("Self-test passed: shared-scaffold molecules stayed together.")

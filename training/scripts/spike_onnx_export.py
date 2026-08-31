@@ -33,34 +33,29 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
+
+# --- Windows console encoding --------------------------------------------
+#  Git Bash on Windows gives Python a cp1252 stdout. torch's dynamo exporter
+#  prints a U+2705 into its own progress line, which raises
+#  UnicodeEncodeError *inside* the exporter -- so the export appears to
+#  "decline" and this script silently falls back to the deprecated
+#  TorchScript path. The two paths produce different artefacts (47 KB vs
+#  481 KB) at different opsets, which means the spike would validate a
+#  different exporter depending on which terminal ran it. Force UTF-8 so the
+#  route is a property of the toolchain, not of the console.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    except (AttributeError, OSError):  # pragma: no cover -- non-tty stream
+        pass
 
 # --- the contract from method.md -----------------------------------------
 MAX_ATOMS = 128
 N_FEATURES = 33
 N_ENDPOINTS = 12
 HIDDEN = 128
-# Opset 18, not 17 -- and this is a measured fact, not a preference.
-#
-# torch >= 2.9 implements a MINIMUM opset of 18. Ask for 17 and it exports at
-# 18 anyway, then attempts a down-conversion, and for this graph that
-# down-conversion FAILS:
-#
-#     axes_input_to_attribute.h:56: adapt: Assertion
-#     `node->hasAttribute(kaxes)` failed: No initializer or constant input
-#
-# Opset 18 moved the `axes` argument of the Reduce* family from an ATTRIBUTE
-# to an INPUT. The downgrade adapter has to fold that input back into an
-# attribute, and it can only do so when the input is a constant initializer.
-# Our masked mean/max pooling emits exactly those Reduce ops with a computed
-# axes input, so the failure is structural, not incidental -- it will never
-# succeed for this architecture.
-#
-# The old value therefore requested a downgrade that silently did not happen
-# and left an opset-18 file that every document called opset 17. onnxruntime
-# has supported 18 since 1.15, so the Rust `ort` path is unaffected. Declare
-# what we actually produce.
-OPSET = 18
+OPSET = 17
 TOLERANCE = 1e-5
 
 
@@ -117,14 +112,14 @@ class DenseGIN(nn.Module):
         h = torch.relu(self._norm(self.bn2, self.l2(h, adj)))
         h = torch.relu(self._norm(self.bn3, self.l3(h, adj)))
 
-        m = mask.unsqueeze(-1)                       # [B, N, 1]
-        h = h * m                                    # kill the padding
+        m = mask.unsqueeze(-1)  # [B, N, 1]
+        h = h * m  # kill the padding
 
         # Masked mean: divide by the real atom count, not by MAX_ATOMS.
         # Getting this wrong shrinks every embedding by N/128 and the model
         # still trains -- just badly, and silently.
-        n_real = m.sum(dim=1).clamp(min=1.0)         # [B, 1]
-        mean_pool = h.sum(dim=1) / n_real            # [B, C]
+        n_real = m.sum(dim=1).clamp(min=1.0)  # [B, 1]
+        mean_pool = h.sum(dim=1) / n_real  # [B, C]
 
         # Masked max: padding must not win the max.
         max_pool = h.masked_fill(m == 0, -1e9).max(dim=1).values
@@ -147,16 +142,16 @@ def random_batch(batch_size: int, seed: int = 0):
     mask = np.zeros((batch_size, MAX_ATOMS), dtype=np.float32)
 
     for b in range(batch_size):
-        n = int(rng.integers(5, 61))          # 5..60 heavy atoms
+        n = int(rng.integers(5, 61))  # 5..60 heavy atoms
         mask[b, :n] = 1.0
 
         for i in range(n):
-            x[b, i, int(rng.integers(0, 10))] = 1.0        # element block
-            x[b, i, 10 + int(rng.integers(0, 6))] = 1.0    # degree block
-            x[b, i, 31] = float(rng.integers(0, 2))        # aromatic flag
+            x[b, i, int(rng.integers(0, 10))] = 1.0  # element block
+            x[b, i, 10 + int(rng.integers(0, 6))] = 1.0  # degree block
+            x[b, i, 31] = float(rng.integers(0, 2))  # aromatic flag
 
         # spanning tree guarantees connectivity, plus a few ring closures
-        a = np.eye(n, dtype=np.float32)                    # self-loops
+        a = np.eye(n, dtype=np.float32)  # self-loops
         for i in range(1, n):
             j = int(rng.integers(0, i))
             a[i, j] = a[j, i] = 1.0
@@ -195,14 +190,16 @@ def main() -> int:
         print("  pip install onnx onnxruntime")
         return 1
     print(f"  opset      {OPSET}")
-    print(f"  shapes     x[B,{MAX_ATOMS},{N_FEATURES}]  "
-          f"adj[B,{MAX_ATOMS},{MAX_ATOMS}]  mask[B,{MAX_ATOMS}]")
+    print(
+        f"  shapes     x[B,{MAX_ATOMS},{N_FEATURES}]  "
+        f"adj[B,{MAX_ATOMS},{MAX_ATOMS}]  mask[B,{MAX_ATOMS}]"
+    )
     print()
 
     model = DenseGIN()
     model.eval()  # CRITICAL. Exporting in train mode bakes batch statistics
-                  # into the graph and the served model then disagrees with
-                  # the trained one.
+    # into the graph and the served model then disagrees with
+    # the trained one.
 
     n_params = sum(p.numel() for p in model.parameters())
     print(f"  [1/5] model built ....................... {n_params:,} params")
@@ -249,6 +246,13 @@ def main() -> int:
             output_names=["predictions"],
             dynamic_shapes=({0: batch}, {0: batch}, {0: batch}),
             dynamo=True,
+            #  DEF-01: dynamo=True defaults to external_data=True, which writes
+            #  the weights to a SEPARATE `<name>.onnx.data` sidecar. Copying only
+            #  the .onnx into fixtures/ therefore produced a file that no runtime
+            #  can load ("External data path does not exist"). At 47 KB the
+            #  sidecar buys nothing, so the artefact is forced self-contained --
+            #  a committed fixture must be a single file to be useful to CI.
+            external_data=False,
         )
 
     def _export_legacy() -> None:
@@ -282,8 +286,7 @@ def main() -> int:
             route = "legacy TorchScript"
         size_kb = onnx_path.stat().st_size / 1024
         print(
-            f"  [3/5] onnx export ....................... "
-            f"{size_kb:,.0f} KB  [{route}]"
+            f"  [3/5] onnx export ....................... {size_kb:,.0f} KB  [{route}]"
         )
         results.append(("export", True, f"{size_kb:,.0f} KB / {route}"))
     except Exception as exc:  # noqa: BLE001
@@ -293,19 +296,53 @@ def main() -> int:
         return 1
 
     # ---- structural validation ------------------------------------------
+    #  Read the opset back off the artefact rather than trusting the number
+    #  we asked for. torch >= 2.9's dynamo exporter silently RAISES a request
+    #  for 17 to 18 ("we have no implementations below 18") and then fails to
+    #  down-convert, so `opset_version=17` can produce an opset-18 graph. A
+    #  script that prints the requested number and never checks the delivered
+    #  one is how a repository ends up with two different opsets on record.
+    actual_opset: int | None = None
     try:
-        onnx.checker.check_model(onnx.load(str(onnx_path)))
-        print("  [4/5] onnx.checker ...................... valid")
-        results.append(("checker", True, "valid graph"))
+        loaded = onnx.load(str(onnx_path))
+        onnx.checker.check_model(loaded)
+        actual_opset = next(
+            (o.version for o in loaded.opset_import if o.domain in ("", "ai.onnx")),
+            None,
+        )
+        print(
+            f"  [4/5] onnx.checker ...................... valid "
+            f"(ir {loaded.ir_version}, opset {actual_opset})"
+        )
+        results.append(("checker", True, f"valid graph / opset {actual_opset}"))
     except Exception as exc:  # noqa: BLE001
         print(f"  [4/5] onnx.checker ...................... FAILED\n\n{exc}")
         results.append(("checker", False, str(exc)[:200]))
 
+    if actual_opset is not None and actual_opset != OPSET:
+        print(
+            f"\n  [!] OPSET MISMATCH: requested {OPSET}, artefact is "
+            f"{actual_opset}.\n"
+            f"      The exporter refused to down-convert. Either set "
+            f"OPSET = {actual_opset}\n"
+            f"      here and amend TR-01, or export through a toolchain that "
+            f"honours {OPSET}.\n"
+            f"      This is not a spike failure -- the round trip works. It "
+            f"is a\n"
+            f"      documentation defect, and it is open question Q-1 in "
+            f"docs/01-srs.md.\n"
+        )
+        results.append(
+            (
+                "opset",
+                True,
+                f"{actual_opset} DELIVERED, {OPSET} requested -- Q-1 UNRESOLVED",
+            )
+        )
+
     # ---- numerical parity across batch sizes ----------------------------
     print("  [5/5] runtime parity")
-    sess = ort.InferenceSession(
-        str(onnx_path), providers=["CPUExecutionProvider"]
-    )
+    sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
 
     ok_all = True
     for bs in (1, 7, 64):
@@ -316,13 +353,13 @@ def main() -> int:
                 torch.from_numpy(badj),
                 torch.from_numpy(bmask),
             ).numpy()
-        got = sess.run(
-            ["predictions"], {"x": bx, "adj": badj, "mask": bmask}
-        )[0]
+        got = sess.run(["predictions"], {"x": bx, "adj": badj, "mask": bmask})[0]
 
         if got.shape != expect.shape:
-            print(f"        batch {bs:<3} shape mismatch "
-                  f"{got.shape} vs {expect.shape}   FAIL")
+            print(
+                f"        batch {bs:<3} shape mismatch "
+                f"{got.shape} vs {expect.shape}   FAIL"
+            )
             ok_all = False
             continue
 
@@ -352,14 +389,37 @@ def _summary(results, onnx_path: Path | None = None) -> int:
   across dynamic batch sizes. The Rust inference path is viable.
 
   Next steps:
-    1. Copy the artefact to fixtures/spike_tiny_gin.onnx and commit it,
-       so CI can prove the round-trip without a training run.
+    1. Publish the artefact with `--publish` (copies it to
+       fixtures/spike_tiny_gin.onnx) and commit it, so CI can prove the
+       round-trip without a training run.
     2. Load it from Rust with `ort` and assert the same outputs. That
        closes the loop end to end before any real model exists.
     3. Proceed to Increment 1 (data pipeline + real training).
 """)
         if onnx_path is not None:
             print(f"  artefact: {onnx_path}\n")
+            #  Publishing is opt-in: a spike that silently overwrites a
+            #  committed fixture would make an accidental model change look
+            #  like a passing test.
+            if "--publish" in sys.argv:
+                import shutil
+
+                import onnxruntime as _ort
+
+                dest = (
+                    Path(__file__).resolve().parents[2]
+                    / "fixtures"
+                    / "spike_tiny_gin.onnx"
+                )
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(onnx_path, dest)
+                #  Assert the published copy actually loads standalone. The
+                #  previous fixture did not (DEF-01) and nothing caught it.
+                _ort.InferenceSession(str(dest), providers=["CPUExecutionProvider"])
+                print(
+                    f"  published: {dest} "
+                    f"({dest.stat().st_size / 1024:.0f} KB, loads standalone)\n"
+                )
         return 0
 
     print("""
@@ -372,9 +432,7 @@ def _summary(results, onnx_path: Path | None = None) -> int:
       export. This model must use torch.bmm on a dense adjacency.
     * Is any tensor shape dependent on the input data? Only the BATCH axis
       may be dynamic; the atom axis must be fixed at 128.
-    * Try opset 19 or 20. Occasionally an op gains support in a later opset.
-      Do NOT try below 18: the exporter cannot emit it, and the down-convert
-      pass fails on the Reduce* axes-as-input change described at OPSET above.
+    * Try opset 18 or 19. Occasionally an op gains support in a later opset.
     * Was model.eval() called before export? BatchNorm in train mode can
       emit ops that fail to fold.
 
