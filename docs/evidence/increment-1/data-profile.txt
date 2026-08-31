@@ -1,0 +1,36 @@
+.venv/Scripts/python.exe training/data/profile.py
+key        task         rows  bad  heavy~  max  >128  dup  distribution
+-----------------------------------------------------------------------
+caco2      regression    910    0    29.4   68     0    4  mean -5.24 sd 0.78 skew -0.67
+hia        binary        578    0    22.9  101     0    0  positives 86.5%  IMBALANCED
+pgp        binary       1218    0    27.1   51     0    6  positives 53.4%
+bioavail   binary        640    0    24.3   71     0    0  positives 76.9%
+bbb        binary       2030    0    24.1  132     1   55  positives 76.4%
+ppbr       regression   2790    0    28.9   82     0  993  mean 86.73 sd 18.13 skew -2.00  LONG-TAILED
+vdss       regression   1130    0    29.7  155     6   19  mean 4.12 sd 22.35 skew +27.13  LONG-TAILED
+cyp3a4     binary      12328    0    24.9  123     0    0  positives 41.4%
+cyp2d6     binary      13130    0    25.0  123     0    0  positives 19.1%  IMBALANCED
+half_life  regression    667    0    27.7  132     1    2  mean 18.21 sd 81.87 skew +10.31  LONG-TAILED
+clearance  regression   1213    0    28.6   82     0  193  mean 42.90 sd 49.85 skew +1.24  LONG-TAILED
+herg       binary        655    0    26.5   74     0    7  positives 68.8%
+-----------------------------------------------------------------------
+TOTAL                  37289
+
+profile -> results/data_profile.json
+
+9 thing(s) worth knowing before you model:
+  - hia: 86.5% positives -- use pos_weight=0.156
+  - bbb: 1 molecules (0.049%) exceed the 128-atom cap and will be REJECTED
+  - ppbr: skew -2.00 -- Huber loss, not MSE
+  - vdss: skew +27.13 -- Huber loss, not MSE
+  - vdss: 6 molecules (0.531%) exceed the 128-atom cap and will be REJECTED
+  - cyp2d6: 19.1% positives -- use pos_weight=4.223
+  - half_life: skew +10.31 -- Huber loss, not MSE
+  - half_life: 1 molecules (0.15%) exceed the 128-atom cap and will be REJECTED
+  - clearance: skew +1.24 -- Huber loss, not MSE
+
+None of these are errors. They are the findings that make the data
+chapter of your report worth reading -- record them in your weekly log.
+
+Shared trunk sees ~37,289 labelled rows across 12 endpoints.
+The smallest endpoint alone has far fewer -- that gap is why the model is multi-task.

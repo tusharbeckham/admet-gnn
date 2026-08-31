@@ -1,0 +1,38 @@
+[package]
+name = "admet-cli"
+description = "Offline batch scoring and benchmarking for ADMETriage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# =============================================================================
+#  Deliberately synchronous, and deliberately without a database.
+#
+#  Note what is absent: no tokio, no sqlx, no axum. This binary reads a CSV,
+#  scores it, and writes a CSV. There is no I/O concurrency to overlap -- the
+#  work is CPU-bound inference -- so an async runtime would add a scheduler and
+#  buy nothing. Parallelism comes from rayon over the rows, which is the right
+#  tool for a CPU-bound map.
+#
+#  That this is even possible is ADR-02 working. The CLI reuses the identical
+#  chemistry and the identical model as the server, with none of the serving
+#  infrastructure, because the domain crate has no I/O to drag along.
+#
+#  It also makes the CLI the honest benchmark harness: `admet-cli bench` measures
+#  parse + featurise + infer with no HTTP, no connection pool and no cache in the
+#  way, so the number it reports is the model's cost rather than the stack's.
+# =============================================================================
+[dependencies]
+admet-core = { workspace = true }
+admet-infer = { workspace = true }
+
+clap = { workspace = true }
+csv = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+rayon = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

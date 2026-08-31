@@ -1,0 +1,15 @@
+# Pinning the CHANNEL rather than a version number.
+#
+# A pinned version ("1.83.0") is the reproducible choice for a team shipping
+# to production. For a solo project on a deadline it mostly means rustup
+# downloading a second toolchain the first time you type `cargo test`, and
+# then quietly rotting for fifteen weeks. `stable` is the pragmatic answer
+# here; revisit if CI and your laptop ever disagree about a warning.
+#
+# The components matter more than the channel: `cargo fmt` and `cargo clippy`
+# are part of the definition of done in requirements.md, so the toolchain
+# should refuse to exist without them.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
+profile = "default"

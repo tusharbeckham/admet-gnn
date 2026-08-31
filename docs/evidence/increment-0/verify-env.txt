@@ -1,0 +1,52 @@
+[1mADMETriage environment check[0m   [2m/c/projects/Phore[0m
+
+[1mRust toolchain      (Increment 2 onward -- the serving half)[0m
+  rustc           [32mOK[0m    [2mrustc 1.98.0 (88d9e12ae 2026-08-18)[0m
+  cargo           [32mOK[0m    [2mcargo 1.98.0 (797e8a9bc 2026-08-05)[0m
+  rustfmt         [32mOK[0m    [2mrustfmt 1.9.0-stable (88d9e12ae1 2026-08-18)[0m
+  clippy          [32mOK[0m    [2mclippy 0.1.98 (88d9e12ae1 2026-08-18)[0m
+  nextest         [32mOK[0m    [2mcargo-nextest 0.9.143 (60fa45f63 2026-08-04)[0m
+  just            [32mOK[0m    [2mjust 1.58.0[0m
+  sqlx-cli        [32mOK[0m    [2msqlx-cli 0.9.0[0m
+  llvm-cov        [32mOK[0m    [2mcargo-llvm-cov 0.9.0[0m
+  audit           [32mOK[0m    [2mcargo-audit-audit 0.22.2[0m
+
+[1mPython training env (Increment 1 -- the model half)[0m
+  uv              [32mOK[0m    [2muv 0.12.5 (210d1f678 2026-08-14 x86_64-pc-windows-ms[0m
+  .venv           [32mOK[0m    [2mPython 3.12.10[0m
+  torch           [32mOK[0m    [2m2.13.0+cpu[0m
+  rdkit           [32mOK[0m    [2m2026.03.5[0m
+  onnx            [32mOK[0m    [2m1.22.0[0m
+  onnxruntime     [32mOK[0m    [2m1.29.0[0m
+  numpy           [32mOK[0m    [2m2.5.2[0m
+  pandas          [32mOK[0m    [2m3.0.5[0m
+  sklearn         [32mOK[0m    [2m1.9.0[0m
+  ruff            [32mOK[0m    [2mruff 0.16.4[0m
+  pytest          [32mOK[0m    [2mpytest 9.1.1[0m
+  PyTDC(.venv-tdc)[33mskip[0m  [2mseparate env -- see requirements-data.txt[0m
+
+[1mServices            (Increment 2 onward)[0m
+  docker          [32mOK[0m    [2mDocker version 29.6.1, build 8900f1d[0m
+  postgres        [33mskip[0m  [2mjust db-up[0m
+
+[1mFront end           (Increment 3 onward)[0m
+  node            [32mOK[0m    [2mv22.22.2[0m
+  pnpm            [32mOK[0m    [2m11.23.0[0m
+
+[1mDocuments & tooling[0m
+  git             [32mOK[0m    [2mgit version 2.55.0.windows.3[0m
+  gh              [32mOK[0m    [2mgh version 2.96.0 (2026-07-02)[0m
+  typst           [32mOK[0m    [2mtypst 0.15.1 (9dfd3a08)[0m
+
+[1mRepository invariants[0m
+  spike model     [32mOK[0m    [2m[0m
+  parity fixt     [32mOK[0m    [2m[0m
+  py 3.12         [32mOK[0m    [2m[0m
+
+[1m----------------------------------------------------------[0m
+  passed [32m29[0m    failed [31m0[0m    optional-missing [33m2[0m
+
+  [2mnot yet needed:[0m PyTDC(.venv-tdc) postgres
+
+  [32mEnvironment is ready.[0m Screenshot this for your report.
+

@@ -1,0 +1,43 @@
+[package]
+name = "admet-db"
+description = "Persistence for ADMETriage: sqlx repositories over PostgreSQL (and SQLite for the desktop build)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# =============================================================================
+#  This crate is an ADAPTER, not the domain (ADR-02)
+#
+#  It knows about tables, connection pools and SQL. It does not know what a
+#  molecule *is* -- that lives in admet-core, and the arrow points that way and
+#  never back. Concretely: nothing in admet-core may `use admet_db::...`, and if
+#  something ever wants to, the type it wants belongs in admet-core instead.
+#
+#  The payoff is Increment 5. The desktop build swaps PostgreSQL for SQLite,
+#  which means changing the feature list below and the SQL dialect in this
+#  crate. admet-core and admet-infer do not recompile differently, and the API
+#  handlers keep calling the same repository methods.
+# =============================================================================
+[dependencies]
+admet-core = { workspace = true }
+
+# `default-features = false` plus an explicit list. The default set drags in
+# native-tls, which on Windows means locating an OpenSSL installation before
+# anything compiles. tls-rustls is pure Rust and just works. Configured in the
+# workspace manifest so every crate agrees.
+sqlx = { workspace = true }
+tokio = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+# Integration tests here need a live PostgreSQL, so they are marked `#[ignore]`
+# and run explicitly (`just test-db`). A test suite that fails on a laptop
+# without Docker running is a test suite people stop running.
+tokio = { workspace = true }

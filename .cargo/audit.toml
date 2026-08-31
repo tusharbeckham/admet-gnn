@@ -1,0 +1,41 @@
+# cargo-audit configuration
+#
+# Read by `cargo audit` (and therefore by `just audit` and the CI `audit` job).
+#
+# ---------------------------------------------------------------------------
+#  House rule: an entry here is an ARGUMENT, not a mute button.
+# ---------------------------------------------------------------------------
+#  Every ignored advisory must state (a) why the vulnerable code cannot run in
+#  this project, and (b) what would make the entry wrong. An ignore without
+#  those two things is indistinguishable from not having run the audit at all,
+#  and it is worse, because it looks green.
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071 -- "Marvin Attack: potential key recovery through timing
+    # sidechannels" in `rsa` 0.9.10. Medium (5.9). No fixed upgrade exists.
+    #
+    # Why it cannot run here: `rsa` is not in this project's build graph. It is
+    # reachable only through `sqlx-mysql`, and MySQL support is not enabled --
+    # `sqlx` is declared with `default-features = false` and the `postgres`
+    # driver only (Cargo.toml, [workspace.dependencies]). The vulnerable code
+    # path is MySQL's RSA-based `sha256_password` key exchange, which this
+    # project has no way to reach: it speaks to PostgreSQL over rustls.
+    #
+    # Evidence, reproducible at any time:
+    #     cargo tree -i rsa --target all     ->  "warning: nothing to print."
+    #
+    # It appears in `Cargo.lock` regardless because a lockfile records the
+    # MAXIMAL resolve across all features and targets, not the set of crates
+    # that actually compile. `cargo audit` reads the lockfile, so it reports a
+    # crate that is never built, never linked, and never executed.
+    #
+    # What would make this entry WRONG -- re-examine if any of these change:
+    #   * the `mysql` feature is added to `sqlx` for any reason;
+    #   * `cargo tree -i rsa --target all` starts printing a real path;
+    #   * a fixed `rsa` release ships, at which point this is deleted rather
+    #     than kept as history.
+    #
+    # Reviewed: Increment 0 (scaffold verification). Re-check each increment.
+    "RUSTSEC-2023-0071",
+]

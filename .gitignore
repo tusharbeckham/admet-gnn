@@ -1,3 +1,7 @@
+# =============================================================
+#  admet-gnn / ADMETriage
+# =============================================================
+
 # --- Python ---
 __pycache__/
 *.py[cod]
@@ -7,16 +11,42 @@ __pycache__/
 build/
 dist/
 .installed.cfg
+.ruff_cache/
 
 # --- Virtual environments ---
 venv/
 .venv/
+.venv-*/
 env/
 ENV/
+#  .venv-*/ catches the throwaway dataset-download environment
+#  (.venv-tdc -- see requirements-data.txt). Note that .venv/ does NOT
+#  match .venv-tdc/: a trailing-slash pattern matches that exact
+#  directory name and nothing else. Every new environment naming scheme
+#  needs its own rule, or it turns up as untracked at the worst moment.
+
+# --- Rust ---
+target/
+**/*.rs.bk
+*.pdb
+# Cargo.lock IS committed for binaries -- do not ignore it.
+
+# --- Node / SvelteKit ---
+node_modules/
+.svelte-kit/
+web/build/
+web/.vercel/
+web/.output/
+.pnpm-store/
+
+# --- Tauri ---
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
 
 # --- Environment / secrets ---
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 secrets.yaml
@@ -24,21 +54,65 @@ secrets.yaml
 # --- Jupyter ---
 .ipynb_checkpoints/
 
-# --- Data (large / regenerable — do not commit raw or processed datasets) ---
+# --- Data (large, regenerable -- never commit raw or processed datasets) ---
+#  BOTH locations are covered on purpose. Datasets from the MoleculeNet
+#  prototype sit at data/ in the repo root; TDC downloads land under
+#  training/data/. Covering only one path is exactly how 22,000 lines of
+#  CSV once got committed by accident.
 data/raw/*
 data/processed/*
 data/pretrain/*
+data/interim/*
+data/cache/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/pretrain/.gitkeep
+training/data/raw/*
+training/data/processed/*
+training/data/pretrain/*
+training/data/cache/*
+!training/data/raw/.gitkeep
+!training/data/processed/.gitkeep
+!training/data/pretrain/.gitkeep
 
-# --- Model artifacts (large binaries — commit via releases or a model registry instead) ---
+# Generated metrics and figures. Every number in here is reproducible with
+# `just results`, which is the point -- no figure in the report is hand-copied, so
+# committing a snapshot would create a second source of truth that drifts.
+#
+# When a specific number needs to be PRESERVED as evidence for an increment, it is
+# copied into docs/evidence/<increment>/ deliberately, where it is un-ignored and
+# dated. Evidence is a decision, not a side effect of having run something.
+/results/
+
+# The compiled report. `just report` rebuilds it from docs/report/main.typ in
+# seconds, and the .typ source is the artefact under review. Committing the PDF
+# would mean every edit produces a binary diff nobody can read, and a reviewer
+# could never tell whether the checked-in PDF was built from the checked-in
+# source. The submitted copy is a release artefact, not a tracked file.
+docs/report/*.pdf
+docs/report/page*.png
+
+# Bulk dataset and archive formats -- never committed from any location.
+# Small golden-vector fixtures are the deliberate exception, because CI
+# must be able to verify feature parity without a download.
+*.sdf
+*.smi
+*.csv.gz
+*.tsv.gz
+*.parquet
+*.npz
+!fixtures/**
+
+# --- Model artifacts (large binaries -- ship via GitHub Releases) ---
 *.pt
 *.pth
 *.ckpt
 *.onnx
 serving/models/*
 !serving/models/.gitkeep
+# EXCEPTION: the tiny spike artefact is committed so CI can prove the
+# ONNX round-trip without a full training run.
+!fixtures/spike_tiny_gin.onnx
 
 # --- Experiment tracking / logs ---
 *.log
@@ -47,18 +121,17 @@ mlruns/
 lightning_logs/
 runs/
 
-# --- Frontend ---
-node_modules/
-frontend/dist/
-frontend/build/
-frontend/.next/
-frontend/.cache/
-
 # --- Docker ---
 *.pid
 
+# --- Diagram tool scratch files (export the PNG/SVG, commit that) ---
+*.mdj.bak
+*.uxf~
+
 # --- IDE ---
 .vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.swp
 
@@ -66,11 +139,47 @@ frontend/.cache/
 .DS_Store
 Thumbs.db
 
-# --- Internal planning docs (proprietary, not pushed — README.md is the exception) ---
-*.md
-!README.md
-
 # --- Testing / coverage ---
 .pytest_cache/
 .coverage
 htmlcov/
+tarpaulin-report.html
+lcov.info
+
+# =============================================================
+#  MARKDOWN VISIBILITY -- deliberate decision
+# =============================================================
+#  Two tiers, and the distinction is what gets graded.
+#
+#  PUBLISHED (tracked):  docs/** -- the SRS, design document, test
+#  plan, traceability matrix, ADRs, diagram specifications, weekly
+#  journal. These are deliverables. They belong in version control
+#  so their history is evidence: an examiner can see that ADR-03
+#  was written before the model, not reverse-engineered after it.
+#
+#  PRIVATE (ignored):    /*.md at the repo root -- research.md,
+#  method.md, requirements.md, implementation.md, MIGRATION.md.
+#  These are working notes. They are where thinking happens, they
+#  contradict themselves in places, and they are submitted as
+#  finished documents rather than as a directory listing.
+#
+#  The pattern is `/*.md`, NOT `*.md`. The leading slash anchors it
+#  to the root: without it, git ignores markdown at every depth and
+#  docs/ silently vanishes -- which is a genuinely confusing bug,
+#  because `git status` reports nothing at all rather than an error.
+#
+#  README.md is re-included because it is the repository's front
+#  door and must be visible on the hosting page. START-HERE.md is
+#  re-included because it is a deliverable in its own right -- the
+#  week-by-week execution guide -- and it is useless to anyone who
+#  clones the repository if it is not in the repository.
+/*.md
+!README.md
+!START-HERE.md
+
+# Evidence artefacts survive the bulk-format rules above. A test
+# log or a coverage report committed under docs/evidence/ is there
+# on purpose -- it is the proof behind a number in the report, and
+# regenerating it months later on different hardware would produce
+# a different number. See docs/evidence/README.md.
+!docs/evidence/**

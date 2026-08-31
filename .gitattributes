@@ -1,0 +1,54 @@
+# Normalise line endings. Every .md file in the previous version of this
+# repository was committed with CRLF endings, which makes diffs noisy and
+# breaks shebangs and heredocs when the same tree is checked out in CI.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Extensionless executables that MUST be LF. `* text=auto eol=lf` above already
+# covers these, but stating them explicitly is worth the two lines: a CRLF in the
+# shebang makes the hook fail with `bash\r: No such file or directory`, an error
+# that names neither the cause nor the file, and which only appears on Windows.
+.githooks/* text eol=lf
+justfile text eol=lf
+*.sh text eol=lf
+
+# Binary -- never diff or normalise these.
+*.onnx binary
+*.pt binary
+*.pth binary
+*.png binary
+*.jpg binary
+*.pdf binary
+*.ico binary
+*.woff2 binary
+# Compressed and array formats. `text=auto` usually detects these, but a
+# gzipped CSV is exactly the kind of file that gets mangled by line-ending
+# normalisation if detection guesses wrong.
+*.gz binary
+*.zip binary
+*.bz2 binary
+*.xz binary
+*.npy binary
+*.npz binary
+# Raw little-endian float32 blobs -- the golden parity fixtures. `text=auto`
+# would almost certainly detect these as binary on its own, because float data
+# is full of NUL bytes. Almost certainly is not a guarantee, and a fixture
+# quietly corrupted by CRLF translation would make the Rust parity test fail
+# for a reason nobody would think to look for.
+*.f32 binary
+*.parquet binary
+*.sqlite binary
+
+# Generated / vendored files: keep them out of language statistics and
+# collapse them in pull-request diffs.
+Cargo.lock linguist-generated=true
+pnpm-lock.yaml linguist-generated=true
+web/src/lib/vendor/** linguist-vendored=true
+
+# Diagram sources are text but are not meaningfully reviewable as diffs.
+*.mdj -diff
+*.puml text
+*.dbml text
