@@ -1,0 +1,9 @@
+# This directory is committed empty on purpose.
+#
+# Evidence artefacts (screenshots, environment captures, inspection records) land
+# here from Increment 1 onward. `.gitignore` carries an explicit
+# `!docs/evidence/**` exception so that a `.log` or `.png` committed here survives
+# the general ignore rules.
+#
+# See README.md in this directory for naming, the caption-file requirement, and
+# the register of the ten artefacts expected across the five increments.
