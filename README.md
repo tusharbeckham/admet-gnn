@@ -12,30 +12,49 @@ week-by-week plan with the exact commands.
 
 **Status — 2026-08-31, at the scaffold tag.** Planning and design are complete: SRS,
 design document, test plan, traceability matrix and seven ADRs are written. The Rust
-toolchain is now installed and **the workspace compiles**: all five crates build clean,
+toolchain is installed and **the workspace compiles**: all five crates build clean,
 `cargo clippy --all-features -- -D warnings` is silent, and `cargo nextest run --workspace`
-reports **119 passed, 17 skipped** — the 17 being `#[ignore]`d placeholders that name
-Increment 1–5 work rather than pretending to cover it. `cargo doc` is a gate too, so a
-comment cannot link to a method that does not exist. CI is green on all four jobs.
+reports **129 passed, 17 skipped** — the 17 being `#[ignore]`d placeholders that name
+Increment 1–5 work rather than pretending to cover it. Plus 8 doc tests and 24 Python
+tests. `cargo doc` is a gate too, so a comment cannot link to a method that does not
+exist. Coverage on the two crates NFR-04 governs is **83.1%**, above the 75% floor, and
+`just coverage-gate` enforces it. CI is green on all four jobs.
 
 The gate that matters: `tests/onnx_parity.rs` **passes**, agreeing with Python's
 `onnxruntime` within tolerance across batch sizes 1 and 3. That closes the Python↔Rust
-loop ADR-01 rests on, and it had never once executed before this.
+loop ADR-01 rests on, and it had never once executed before this. The 33-feature contract
+is now guarded from both ends — Rust asserts the committed `models/feature_schema.json`
+still matches the code that generates it, and Python asserts it contains what the
+featuriser is about to assume.
 
-Compiling a scaffold that had never been built cost **eleven defects**, DEF-01…DEF-11 in
-[`docs/03-test-plan.md`](docs/03-test-plan.md) §10.2, three of them S1 — a wrong number
-that looks right. The committed ONNX fixture could not be loaded at all; `MolGraph::default()`
-violated the CSR invariant it validates itself against; and one fatal endpoint scored 0.119
-instead of ~0, meaning the triage score did not actually disqualify a likely hERG blocker.
-Evidence in [`docs/evidence/increment-0/`](docs/evidence/increment-0/).
+**Data is in.** All twelve TDC endpoints are downloaded and profiled: **37,289 labelled
+rows, zero unparseable SMILES**. Real findings, not projections — `hia` is 86.5% positive
+and `cyp2d6` 19.1%, so class weighting is mandatory; four regression targets are
+long-tailed with `vdss` at skew **+27**, so Huber not MSE; and **8 molecules of 37,289**
+exceed the 128-atom cap, meaning ADR-03's fixed axis costs 0.02% of the data.
+Evidence in [`docs/evidence/increment-1/`](docs/evidence/increment-1/).
 
-Still absent, deliberately: the TDC downloader is written but nothing has been downloaded,
-so `data/` still holds the superseded MoleculeNet prototype. No featuriser body, no GIN, no
-training run, no migrations, no front end.
+Building and running a scaffold that had never been compiled cost **fifteen defects**,
+DEF-01…DEF-15 in [`docs/03-test-plan.md`](docs/03-test-plan.md) §10.2 — all fifteen
+reserved rows, used before Increment 1 finished. Three were S1, a wrong number that looks
+right: the committed ONNX fixture could not be loaded at all; `MolGraph::default()`
+violated the CSR invariant it validates itself against; and one fatal endpoint scored
+0.119 instead of ~0, meaning the triage score did not disqualify a likely hERG blocker.
+Two more were quality gates that had **never once fired** — a secret scanner that failed
+on every input regardless of content, and a bench recipe that could not accept its own
+flags. That is the category worth fearing: a gate nobody has seen fail is
+indistinguishable from one that does nothing.
 
-So nothing here is trained or benchmarked. Every performance figure in `docs/` is a
-*target*, not a measurement, and is labelled as such. A skipped test is not a passing test,
-and 119 passing tests over stubs say the scaffold is sound — not that the system works.
+`just report` compiles a 7-page report skeleton whose tables are generated from the
+pipeline's own JSON, so no figure in it can be hand-copied or go quietly stale.
+
+Still absent, deliberately: no featuriser body, no GIN, no training run, no migrations, no
+front end. `/predict` returns a documented 503 rather than a 404.
+
+So nothing here is trained. Every performance figure in `docs/` is a *target*, not a
+measurement, and is labelled as such — the report renders those in red. A skipped test is
+not a passing test, and 129 passing tests over stubs say the scaffold is sound, not that
+the system works.
 
 
 ---
