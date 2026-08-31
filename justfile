@@ -317,7 +317,14 @@ diagrams:
 
 # Build the report PDF.
 report:
-    typst compile docs/report/main.typ docs/report/ADMETriage.pdf
+    #  `--root .` is required. Typst sandboxes file access to the directory of the
+    #  source file, so without it `json("../evidence/...")` fails with
+    #  "would escape the project root". The report deliberately READS its numbers
+    #  from pipeline artefacts rather than having them typed in, so it needs the
+    #  repository as its root -- that is the whole mechanism that stops a figure
+    #  going stale silently.
+    typst compile --root . docs/report/main.typ docs/report/ADMETriage.pdf
+    @echo "wrote docs/report/ADMETriage.pdf"
 
 # =============================================================================
 #  Housekeeping

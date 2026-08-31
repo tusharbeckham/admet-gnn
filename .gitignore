@@ -84,6 +84,14 @@ training/data/cache/*
 # dated. Evidence is a decision, not a side effect of having run something.
 /results/
 
+# The compiled report. `just report` rebuilds it from docs/report/main.typ in
+# seconds, and the .typ source is the artefact under review. Committing the PDF
+# would mean every edit produces a binary diff nobody can read, and a reviewer
+# could never tell whether the checked-in PDF was built from the checked-in
+# source. The submitted copy is a release artefact, not a tracked file.
+docs/report/*.pdf
+docs/report/page*.png
+
 # Bulk dataset and archive formats -- never committed from any location.
 # Small golden-vector fixtures are the deliberate exception, because CI
 # must be able to verify feature parity without a download.
