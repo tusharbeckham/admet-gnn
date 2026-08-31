@@ -1,0 +1,182 @@
+{
+  "pytdc_version": "1.1.15",
+  "smiles_column": "Drug",
+  "label_column": "Y",
+  "prescribed_seeds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "endpoints": {
+    "caco2": {
+      "tdc_name": "Caco2_Wang",
+      "category": "absorption",
+      "task": "regression",
+      "n_train_val": 728,
+      "n_test": 182,
+      "n_total": 910,
+      "n_expected": 906,
+      "columns": [
+        "Drug_ID",
+        "Drug",
+        "Y"
+      ]
+    },
+    "hia": {
+      "tdc_name": "HIA_Hou",
+      "category": "absorption",
+      "task": "binary",
+      "n_train_val": 461,
+      "n_test": 117,
+      "n_total": 578,
+      "n_expected": 578,
+      "columns": [
+        "Drug_ID",
+        "Drug",
+        "Y"
+      ]
+    },
+    "pgp": {
+      "tdc_name": "Pgp_Broccatelli",
+      "category": "absorption",
+      "task": "binary",
+      "n_train_val": 973,
+      "n_test": 245,
+      "n_total": 1218,
+      "n_expected": 1212,
+      "columns": [
+        "Drug_ID",
+        "Drug",
+        "Y"
+      ]
+    },
+    "bioavail": {
+      "tdc_name": "Bioavailability_Ma",
+      "category": "absorption",
+      "task": "binary",
+      "n_train_val": 512,
+      "n_test": 128,
+      "n_total": 640,
+      "n_expected": 640,
+      "columns": [
+        "Drug_ID",
+        "Drug",
+        "Y"
+      ]
+    },
+    "bbb": {
+      "tdc_name": "BBB_Martins",
+      "category": "distribution",
+      "task": "binary",
+      "n_train_val": 1624,
+      "n_test": 406,
+      "n_total": 2030,
+      "n_expected": 1975,
+      "columns": [
+        "Drug_ID",
+        "Drug",
+        "Y"
+      ]
+    },
+    "ppbr": {
+      "tdc_name": "PPBR_AZ",
+      "category": "distribution",
+      "task": "regression",
+      "n_train_val": 2231,
+      "n_test": 559,
+      "n_total": 2790,
+      "n_expected": 1797,
+      "columns": [
+        "Drug_ID",
+        "Drug",
+        "Y"
+      ]
+    },
+    "vdss": {
+      "tdc_name": "VDss_Lombardo",
+      "category": "distribution",
+      "task": "regression",
+      "n_train_val": 904,
+      "n_test": 226,
+      "n_total": 1130,
+      "n_expected": 1130,
+      "columns": [
+        "Drug_ID",
+        "Drug",
+        "Y"
+      ]
+    },
+    "cyp3a4": {
+      "tdc_name": "CYP3A4_Veith",
+      "category": "metabolism",
+      "task": "binary",
+      "n_train_val": 9861,
+      "n_test": 2467,
+      "n_total": 12328,
+      "n_expected": 12328,
+      "columns": [
+        "Drug_ID",
+        "Drug",
+        "Y"
+      ]
+    },
+    "cyp2d6": {
+      "tdc_name": "CYP2D6_Veith",
+      "category": "metabolism",
+      "task": "binary",
+      "n_train_val": 10504,
+      "n_test": 2626,
+      "n_total": 13130,
+      "n_expected": 13130,
+      "columns": [
+        "Drug_ID",
+        "Drug",
+        "Y"
+      ]
+    },
+    "half_life": {
+      "tdc_name": "Half_Life_Obach",
+      "category": "excretion",
+      "task": "regression",
+      "n_train_val": 532,
+      "n_test": 135,
+      "n_total": 667,
+      "n_expected": 667,
+      "columns": [
+        "Drug_ID",
+        "Drug",
+        "Y"
+      ]
+    },
+    "clearance": {
+      "tdc_name": "Clearance_Hepatocyte_AZ",
+      "category": "excretion",
+      "task": "regression",
+      "n_train_val": 970,
+      "n_test": 243,
+      "n_total": 1213,
+      "n_expected": 1213,
+      "columns": [
+        "Drug_ID",
+        "Drug",
+        "Y"
+      ]
+    },
+    "herg": {
+      "tdc_name": "hERG",
+      "category": "toxicity",
+      "task": "binary",
+      "n_train_val": 523,
+      "n_test": 132,
+      "n_total": 655,
+      "n_expected": 648,
+      "columns": [
+        "Drug_ID",
+        "Drug",
+        "Y"
+      ]
+    }
+  }
+}

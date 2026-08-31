@@ -229,6 +229,21 @@ coverage:
     cargo llvm-cov --workspace --html
     @echo "open target/llvm-cov/html/index.html"
 
+# NFR-04 as a GATE, with the requirement's own scope.
+#
+#  The floor is "≥ 75% on `admet-core` and `admet-infer`", NOT on the workspace.
+#  That distinction is the whole point: the workspace total is 74.88% and would
+#  fail, but it is dragged down by `admet-db` repository stubs that cannot be
+#  covered without a live Postgres. Gating on the workspace number would either
+#  fail honestly-written code or push someone to write hollow database tests to
+#  move a percentage. Gating on the two pure crates measures what NFR-04 actually
+#  claims: the logic that produces the numbers is exercised.
+#
+#  Measured at the scaffold tag: 83.14% regions / 83.86% lines.
+coverage-gate:
+    cargo llvm-cov --package admet-core --package admet-infer \
+        --summary-only --fail-under-lines 75
+
 # =============================================================================
 #  Database  (Increment 2)
 # =============================================================================

@@ -75,6 +75,15 @@ training/data/cache/*
 !training/data/processed/.gitkeep
 !training/data/pretrain/.gitkeep
 
+# Generated metrics and figures. Every number in here is reproducible with
+# `just results`, which is the point -- no figure in the report is hand-copied, so
+# committing a snapshot would create a second source of truth that drifts.
+#
+# When a specific number needs to be PRESERVED as evidence for an increment, it is
+# copied into docs/evidence/<increment>/ deliberately, where it is un-ignored and
+# dated. Evidence is a decision, not a side effect of having run something.
+/results/
+
 # Bulk dataset and archive formats -- never committed from any location.
 # Small golden-vector fixtures are the deliberate exception, because CI
 # must be able to verify feature parity without a download.

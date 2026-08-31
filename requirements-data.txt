@@ -7,10 +7,37 @@
 #  and it is never the environment you develop in.
 #
 #      uv venv .venv-tdc --python 3.12
-#      .venv-tdc\Scripts\Activate.ps1        # Windows PowerShell
-#      source .venv-tdc/bin/activate         # macOS / Linux
-#      uv pip install -r requirements-data.txt
-#      python training/data/download_tdc.py
+#      uv pip install --python .venv-tdc/Scripts/python.exe --no-deps PyTDC==1.1.15
+#      uv pip install --python .venv-tdc/Scripts/python.exe -r requirements-data.txt
+#      .venv-tdc/Scripts/python.exe training/data/download_tdc.py
+#
+#  ---------------------------------------------------------------------------
+#   Why `--no-deps` for PyTDC, and not `-r` alone
+#  ---------------------------------------------------------------------------
+#   Installing PyTDC with its declared dependencies FAILS on Windows. It pulls
+#   `tiledbsoma`, a single-cell genomics package with no Windows wheel, which
+#   then tries to compile libtiledbsoma from source and dies:
+#
+#       Failed to build `tiledbsoma==1.11.4`
+#       error MSB4184 / Error: not a CMake build directory (missing CMakeCache.txt)
+#       AssertionError: error when building libtiledbsoma from source
+#
+#   Nothing in this project touches single-cell genomics. `--no-deps` skips that
+#   tree, and the packages below are the ones `tdc.benchmark_group.admet_group`
+#   genuinely needs -- established by installing, importing, and adding whatever
+#   the traceback asked for, one at a time.
+#
+#   Note the `setuptools<81` pin in particular: PyTDC 1.1.15 calls
+#   `pkg_resources.get_distribution(...)` at import time, and setuptools 84
+#   REMOVED `pkg_resources` entirely. Unpinned, the import fails with
+#   `ModuleNotFoundError: No module named 'pkg_resources'`, which reads like a
+#   broken virtualenv rather than a deleted API.
+#
+#   `rdkit` is deliberately NOT here. The hard rule below means this environment
+#   performs no chemistry, so PyTDC's `rdkit<2024.3.1` pin never has to be
+#   satisfied -- and the version conflict that motivated splitting the two
+#   environments simply does not arise.
+#
 #      deactivate
 #
 #  If rdkit has no wheel for 3.12 at this old pin, use --python 3.11 for
@@ -52,10 +79,27 @@
 #  grouping.
 # =============================================================
 
-# Pinned exactly: this environment is disposable, so reproducibility
-# costs nothing and vague ranges only invite surprises.
-PyTDC==1.1.15
-
-# Needed to write the raw CSV. Deliberately unpinned beyond a floor --
-# nothing here feeds the model, so drift is harmless.
+# PyTDC itself is deliberately NOT listed here.
+#
+# Listing it means `uv pip install -r requirements-data.txt` re-resolves its
+# declared dependencies, drags `tiledbsoma` back in, fails to build it, and
+# ABORTS THE WHOLE INSTALL -- so pandas never lands either and the first error you
+# see is `ModuleNotFoundError: No module named 'pandas'`, which points at the
+# wrong problem entirely. Install it separately with `--no-deps`, per the header.
+#
+# What follows is the set PyTDC actually needs in order to reach `admet_group`,
+# established empirically -- install, import, add whatever the traceback asks for,
+# repeat -- rather than taken from its metadata.
 pandas>=2.2
+numpy
+requests
+tqdm
+fuzzywuzzy
+packaging
+scikit-learn
+huggingface_hub
+
+# `pkg_resources` is imported by tdc/oracles.py at import time and was REMOVED
+# in setuptools 84. Without this pin the whole package fails to import.
+setuptools<81
+

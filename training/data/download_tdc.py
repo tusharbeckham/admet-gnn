@@ -101,18 +101,29 @@ def download_all(force: bool = False) -> int:
         )
         return 1
 
-    import tdc
-
     RAW_DIR.mkdir(parents=True, exist_ok=True)
+
+    #  PyTDC 1.1.15 exposes no `tdc.__version__`, so reading it crashed the
+    #  downloader before it fetched a single byte. The installed distribution
+    #  metadata is authoritative anyway -- a package that forgets to set
+    #  `__version__` still has a version.
+    try:
+        from importlib.metadata import version as _dist_version
+
+        tdc_version = _dist_version("PyTDC")
+    except Exception:  # noqa: BLE001
+        #  Never fail the download over a version string. Knowing which TDC
+        #  produced a dataset is useful; it is not worth losing the dataset for.
+        tdc_version = "unknown"
 
     # TDC downloads into `path` on first call and caches afterwards. Point it at
     # the raw dir so the cache is gitignored along with everything else large.
-    print(f"PyTDC {tdc.__version__}")
+    print(f"PyTDC {tdc_version}")
     print(f"cache/download dir: {RAW_DIR.as_posix()}\n")
     group = admet_group(path=str(RAW_DIR))
 
     manifest: dict[str, object] = {
-        "pytdc_version": tdc.__version__,
+        "pytdc_version": tdc_version,
         "smiles_column": SMILES_COL,
         "label_column": LABEL_COL,
         "prescribed_seeds": PRESCRIBED_SEEDS,
@@ -157,14 +168,45 @@ def download_all(force: bool = False) -> int:
         test.to_csv(test_path, index=False)
 
         n_total = len(train_val) + len(test)
-        # A count that differs from TDC's published figure means the dataset was
-        # revised between releases. That is not an error, but a benchmark number
-        # is meaningless without knowing which revision produced it -- so it is
-        # flagged loudly and recorded in the manifest.
-        drift = "" if n_total == expected_n else f"  <-- expected {expected_n}, DRIFT"
+
+        #  Compare on UNIQUE SMILES, not raw rows.
+        #
+        #  The published TDC figures in `docs/06-data-sources.md` are
+        #  unique-molecule counts, while the benchmark-group CSVs contain repeated
+        #  SMILES — 993 of `ppbr`'s 2,790 rows, and 55 of `bbb`'s 2,030. Comparing
+        #  raw rows therefore reported DRIFT on five endpoints that had not
+        #  drifted at all, which is an afternoon lost hunting a data-versioning
+        #  problem that does not exist. Verified for all twelve endpoints:
+        #  rows - duplicates reproduces the published figure exactly, or the raw
+        #  count already matches.
+        #
+        #  Genuine drift is still worth shouting about — a benchmark number is
+        #  meaningless without knowing which dataset revision produced it — so the
+        #  check is kept, just made correct.
+        smiles_col = next(
+            (c for c in ("Drug", "smiles", "SMILES", "drug") if c in train_val.columns),
+            None,
+        )
+        if smiles_col is None:
+            n_unique = n_total
+            dup_note = "  (no SMILES column found; comparing raw rows)"
+        else:
+            import pandas as _pd
+
+            all_smiles = _pd.concat([train_val[smiles_col], test[smiles_col]])
+            n_unique = int(all_smiles.nunique())
+            n_dup = n_total - n_unique
+            dup_note = f"  ({n_dup} duplicate SMILES)" if n_dup else ""
+
+        drift = (
+            ""
+            if n_unique == expected_n or n_total == expected_n
+            else f"  <-- expected {expected_n} unique, got {n_unique}, DRIFT"
+        )
         print(
             f"[download] {key:<10} {tdc_name:<26} "
-            f"{len(train_val):>6} + {len(test):>5} = {n_total:>6}{drift}"
+            f"{len(train_val):>6} + {len(test):>5} = {n_total:>6}"
+            f"{dup_note}{drift}"
         )
 
         manifest["endpoints"][key] = {  # type: ignore[index]
@@ -174,6 +216,9 @@ def download_all(force: bool = False) -> int:
             "n_train_val": len(train_val),
             "n_test": len(test),
             "n_total": n_total,
+            #  Recorded because it, not `n_total`, is the number comparable with
+            #  TDC's published figures and with any other paper's row count.
+            "n_unique_smiles": n_unique,
             "n_expected": expected_n,
             "columns": list(train_val.columns),
         }
